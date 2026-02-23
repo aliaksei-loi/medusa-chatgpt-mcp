@@ -10,8 +10,14 @@ export const CarouselSkeleton: React.FC = () => {
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <div
               key={i}
-              className="carousel-item shrink-0 size-52 rounded-xl border border-subtle animate-pulse bg-gray-100"
-            ></div>
+              className="shrink-0 w-44 rounded-xl border border-subtle animate-pulse bg-gray-100 flex flex-col"
+            >
+              <div className="h-36 rounded-t-xl bg-gray-200" />
+              <div className="p-2.5 space-y-1.5">
+                <div className="h-3 w-24 bg-gray-200 rounded" />
+                <div className="h-3 w-14 bg-gray-200 rounded" />
+              </div>
+            </div>
           ))}
         </div>
       </div>

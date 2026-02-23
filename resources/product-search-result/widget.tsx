@@ -31,19 +31,29 @@ import {
 
 export const widgetMetadata: WidgetMetadata = {
   description:
-    "Display product search results with filtering, state management, and tool interactions",
+    "Display Medusa product search results with filtering, state management, and tool interactions",
   props: propSchema,
   exposeAsTool: false,
   metadata: {
     prefersBorder: false,
-    invoking: "Loading product search results...",
-    invoked: "Product search results loaded",
+    invoking: "Searching products...",
+    invoked: "Products loaded",
     csp: {
       resourceDomains: ["https://cdn.openai.com"],
     },
   },
 };
+
 type FavoritesState = { favorites: string[] };
+
+function formatPrice(amount: number | null, currencyCode: string): string {
+  if (amount === null) return "N/A";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode.toUpperCase(),
+  }).format(amount / 100);
+}
 
 const ProductSearchResult: React.FC = () => {
   const {
@@ -58,34 +68,44 @@ const ProductSearchResult: React.FC = () => {
   } = useWidget<ProductSearchResultProps, FavoritesState>();
 
   const {
-    callTool: getFruitDetails,
-    data: fruitDetails,
+    callTool: getProductDetails,
+    data: productDetailsData,
     isPending: isLoadingDetails,
-  } = useCallTool("get-fruit-details");
+  } = useCallTool("get-product-details");
 
-  const selectedFruit = fruitDetails?.structuredContent as
-    | { fruit: string; facts?: string[] }
+  const selectedProduct = productDetailsData?.structuredContent as
+    | {
+        id: string;
+        title: string;
+        handle: string | null;
+        description: string | null;
+        thumbnail: string | null;
+        images: string[];
+        options: Array<{ title: string; values: string[] }>;
+        variants: Array<{
+          id: string;
+          title: string;
+          sku: string | null;
+          inventory_quantity: number;
+          prices: Array<{ amount: number; currency_code: string }>;
+        }>;
+        collection: string | null;
+        tags: string[];
+      }
     | undefined;
+
   const favorites = state?.favorites ?? [];
 
   const toggleFavorite = useCallback(
-    (fruit: string) => {
+    (productId: string) => {
       const current = state?.favorites ?? [];
-      const next = current.includes(fruit)
-        ? current.filter((f: string) => f !== fruit)
-        : [...current, fruit];
+      const next = current.includes(productId)
+        ? current.filter((id: string) => id !== productId)
+        : [...current, productId];
       setState({ favorites: next });
     },
     [state, setState],
   );
-
-  const accordionItems = [
-    {
-      question: "Demo of the autosize feature",
-      answer:
-        "This is a demo of the autosize feature. The widget will automatically resize to fit the content, as supported by the mcp-apps specification",
-    },
-  ];
 
   if (isPending) {
     return (
@@ -93,10 +113,10 @@ const ProductSearchResult: React.FC = () => {
         <div className="relative bg-surface-elevated border border-default rounded-3xl">
           <div className="p-8 pb-4">
             <Text size="small" className="text-secondary mb-1">
-              MCP-Apps Template
+              Medusa Store
             </Text>
             <Heading level="h2" className="mb-3">
-              Lovely Little Fruit Shop
+              Products
             </Heading>
             <div className="h-5 w-48 rounded-md bg-default/10 animate-pulse" />
           </div>
@@ -115,14 +135,12 @@ const ProductSearchResult: React.FC = () => {
     <McpUseProvider>
       <AppsSDKUIProvider linkComponent={Link}>
         <div className="relative bg-surface-elevated border border-default rounded-3xl">
-          {/* Toolbar — top-right badges and controls */}
+          {/* Toolbar */}
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-            {/* Locale badge */}
             <Badge color="grey" size="small" rounded="full">
               {lang.toUpperCase()}
             </Badge>
 
-            {/* Favorites count */}
             {favorites.length > 0 && (
               <Badge color="red" size="small" rounded="full">
                 <Heart fill="red" />
@@ -130,7 +148,6 @@ const ProductSearchResult: React.FC = () => {
               </Badge>
             )}
 
-            {/* Display mode buttons */}
             {!isFullscreen && !isPip && (
               <>
                 <IconButton
@@ -167,98 +184,204 @@ const ProductSearchResult: React.FC = () => {
           {/* Header */}
           <div className="p-8 pb-4">
             <Text size="small" className="text-secondary mb-1">
-              MCP-Apps Template
+              Medusa Store
             </Text>
             <Heading level="h2" className="mb-1">
-              Lovely Little Fruit Shop
+              Products
             </Heading>
             <Text size="base" className="text-secondary">
               {query
-                ? `Showing results for "${query}"`
-                : "Tap a fruit to see details"}
+                ? `Showing results for "${query}" (${results.length} found)`
+                : `Browse all products (${results.length})`}
             </Text>
           </div>
 
-          {/* Carousel */}
-          <Carousel
-            results={results}
-            favorites={favorites}
-            onSelectFruit={(fruit: string) => getFruitDetails({ fruit })}
-            onToggleFavorite={toggleFavorite}
-          />
+          {/* Product carousel */}
+          {results.length > 0 ? (
+            <Carousel
+              results={results}
+              favorites={favorites}
+              onSelectProduct={(productId: string) =>
+                getProductDetails({ product_id: productId })
+              }
+              onToggleFavorite={toggleFavorite}
+            />
+          ) : (
+            <div className="px-8 py-12 text-center">
+              <Text size="base" className="text-tertiary">
+                No products found
+                {query ? ` for "${query}"` : ""}
+              </Text>
+            </div>
+          )}
 
-          {/* Detail view */}
-          {selectedFruit && (
-            <Container className="mx-8 my-6 flex items-center gap-6">
-              <div
-                className={`rounded-xl p-4 shrink-0 ${
-                  results.find(
-                    (r: { fruit: string }) => r.fruit === selectedFruit.fruit,
-                  )?.color ?? ""
-                }`}
-              >
-                <Image
-                  src={`/fruits/${selectedFruit.fruit}.png`}
-                  alt={selectedFruit.fruit}
-                  className="w-24 h-24 object-contain"
-                />
-              </div>
-              <div className="flex-1">
-                {isLoadingDetails ? (
-                  <div className="animate-pulse h-4 w-32 bg-surface-elevated rounded" />
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Heading level="h3" className="capitalize">
-                        {selectedFruit.fruit}
-                      </Heading>
-                      <IconButton
-                        variant="transparent"
+          {/* Product detail view */}
+          {selectedProduct && (
+            <Container className="mx-8 my-6">
+              <div className="flex items-start gap-6">
+                {/* Product image */}
+                <div className="rounded-xl overflow-hidden shrink-0 bg-surface-base border border-subtle">
+                  {selectedProduct.thumbnail ? (
+                    <Image
+                      src={selectedProduct.thumbnail}
+                      alt={selectedProduct.title}
+                      className="w-28 h-28 object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 flex items-center justify-center text-tertiary text-4xl">
+                      ?
+                    </div>
+                  )}
+                </div>
+
+                {/* Product info */}
+                <div className="flex-1 min-w-0">
+                  {isLoadingDetails ? (
+                    <div className="space-y-2">
+                      <div className="animate-pulse h-5 w-40 bg-surface-elevated rounded" />
+                      <div className="animate-pulse h-4 w-64 bg-surface-elevated rounded" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Heading level="h3">{selectedProduct.title}</Heading>
+                        <IconButton
+                          variant="transparent"
+                          size="small"
+                          onClick={() => toggleFavorite(selectedProduct.id)}
+                          title={
+                            favorites.includes(selectedProduct.id)
+                              ? "Remove from favorites"
+                              : "Add to favorites"
+                          }
+                        >
+                          {favorites.includes(selectedProduct.id) ? (
+                            <Heart fill="red" />
+                          ) : (
+                            <Heart />
+                          )}
+                        </IconButton>
+                      </div>
+
+                      {selectedProduct.collection && (
+                        <Badge
+                          color="grey"
+                          size="small"
+                          rounded="full"
+                          className="mb-2"
+                        >
+                          {selectedProduct.collection}
+                        </Badge>
+                      )}
+
+                      {selectedProduct.description && (
+                        <Text
+                          size="small"
+                          className="text-secondary mb-3 line-clamp-2"
+                        >
+                          {selectedProduct.description}
+                        </Text>
+                      )}
+
+                      {/* Variants & Pricing */}
+                      {selectedProduct.variants.length > 0 && (
+                        <div className="mb-3">
+                          <Text
+                            size="small"
+                            weight="plus"
+                            className="text-default mb-1"
+                          >
+                            Variants ({selectedProduct.variants.length})
+                          </Text>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedProduct.variants.map((v) => {
+                              const price = v.prices[0];
+                              return (
+                                <Badge
+                                  key={v.id}
+                                  color="grey"
+                                  size="small"
+                                  rounded="full"
+                                >
+                                  {v.title}
+                                  {price
+                                    ? ` · ${formatPrice(price.amount, price.currency_code)}`
+                                    : ""}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Options */}
+                      {selectedProduct.options.length > 0 && (
+                        <div className="mb-3">
+                          {selectedProduct.options.map((opt) => (
+                            <div key={opt.title} className="mb-1">
+                              <Text
+                                size="small"
+                                weight="plus"
+                                className="text-default"
+                              >
+                                {opt.title}:
+                              </Text>
+                              <Text
+                                size="small"
+                                className="text-secondary ml-1"
+                              >
+                                {opt.values.join(", ")}
+                              </Text>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Tags */}
+                      {selectedProduct.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {selectedProduct.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              color="blue"
+                              size="small"
+                              rounded="full"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        variant="secondary"
                         size="small"
-                        onClick={() => toggleFavorite(selectedFruit.fruit)}
-                        title={
-                          favorites.includes(selectedFruit.fruit)
-                            ? "Remove from favorites"
-                            : "Add to favorites"
+                        className="mt-2"
+                        onClick={() =>
+                          sendFollowUpMessage(
+                            `Tell me more about the product "${selectedProduct.title}"`,
+                          )
                         }
                       >
-                        {favorites.includes(selectedFruit.fruit) ? (
-                          <Heart fill="red" />
-                        ) : (
-                          <Heart />
-                        )}
-                      </IconButton>
-                    </div>
-                    <ul className="space-y-1">
-                      {(selectedFruit.facts ?? []).map((fact: string) => (
-                        <li key={fact} className="flex items-start gap-2">
-                          <Text size="small" className="text-secondary">
-                            <span className="text-blue-500 mr-1">&bull;</span>
-                            {fact}
-                          </Text>
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      className="mt-3"
-                      onClick={() =>
-                        sendFollowUpMessage(
-                          `Tell me more interesting facts about ${selectedFruit.fruit}`,
-                        )
-                      }
-                    >
-                      <ChatBubble className="w-3.5 h-3.5" />
-                      Ask the AI for more about {selectedFruit.fruit}
-                    </Button>
-                  </>
-                )}
+                        <ChatBubble className="w-3.5 h-3.5" />
+                        Ask AI about {selectedProduct.title}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </Container>
           )}
 
-          <Accordion items={accordionItems} />
+          <Accordion
+            items={[
+              {
+                question: "About this store",
+                answer:
+                  "This widget connects to a MedusaJS backend to browse products. Click any product card to see full details including variants, pricing, and options.",
+              },
+            ]}
+          />
         </div>
       </AppsSDKUIProvider>
     </McpUseProvider>

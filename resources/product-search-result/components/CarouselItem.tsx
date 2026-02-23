@@ -2,25 +2,32 @@ import { IconButton } from "@medusajs/ui";
 import { Heart } from "@medusajs/icons";
 import { Image } from "mcp-use/react";
 import React from "react";
+import type { Product } from "../types";
 
 export interface CarouselItemProps {
-  fruit: string;
-  color: string;
+  product: Product;
   isFavorite?: boolean;
   onClick: () => void;
   onToggleFavorite?: () => void;
 }
 
+function formatPrice(amount: number | null, currencyCode: string): string {
+  if (amount === null) return "N/A";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode.toUpperCase(),
+  }).format(amount / 100);
+}
+
 export const CarouselItem: React.FC<CarouselItemProps> = ({
-  fruit,
-  color,
+  product,
   isFavorite,
   onClick,
   onToggleFavorite,
 }) => {
   return (
     <div
-      className={`carousel-item size-52 rounded-xl border border-subtle ${color} cursor-pointer`}
+      className="carousel-item w-44 min-w-[11rem] rounded-xl border border-subtle bg-surface-base cursor-pointer flex flex-col overflow-hidden"
       onClick={onClick}
     >
       {onToggleFavorite && (
@@ -36,15 +43,35 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
           {isFavorite ? <Heart fill="red" /> : <Heart />}
         </IconButton>
       )}
+
+      {/* Product thumbnail */}
       <div className="carousel-item-bg">
-        <Image src={"/fruits/" + fruit + ".png"} alt={fruit} />
+        {product.thumbnail && (
+          <Image src={product.thumbnail} alt={product.title} />
+        )}
       </div>
       <div className="carousel-item-content">
-        <Image
-          src={"/fruits/" + fruit + ".png"}
-          alt={fruit}
-          className="w-24 h-24 object-contain"
-        />
+        {product.thumbnail ? (
+          <Image
+            src={product.thumbnail}
+            alt={product.title}
+            className="w-24 h-24 object-contain"
+          />
+        ) : (
+          <div className="w-24 h-24 flex items-center justify-center text-tertiary text-3xl">
+            ?
+          </div>
+        )}
+      </div>
+
+      {/* Product info overlay at bottom */}
+      <div className="relative z-10 p-2.5 pt-0">
+        <p className="text-xs font-medium text-default truncate">
+          {product.title}
+        </p>
+        <p className="text-xs text-secondary">
+          {formatPrice(product.price, product.currency_code)}
+        </p>
       </div>
     </div>
   );
