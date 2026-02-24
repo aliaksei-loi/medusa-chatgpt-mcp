@@ -15,12 +15,15 @@ import { Accordion } from "./components/Accordion";
 import type { ProductSearchResultProps } from "./types";
 import { propSchema } from "./types";
 
-import { Badge } from "@medusajs/ui";
-import { Button } from "@medusajs/ui";
-import { Container } from "@medusajs/ui";
-import { Heading } from "@medusajs/ui";
-import { IconButton } from "@medusajs/ui";
-import { Text } from "@medusajs/ui";
+import {
+  Badge,
+  Button,
+  Container,
+  Heading,
+  IconButton,
+  Text,
+} from "@medusajs/ui";
+
 import {
   ArrowsPointingOutMini,
   Heart,
@@ -135,12 +138,7 @@ const ProductSearchResult: React.FC = () => {
     <McpUseProvider>
       <AppsSDKUIProvider linkComponent={Link}>
         <div className="relative bg-surface-elevated border border-default rounded-3xl">
-          {/* Toolbar */}
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-            <Badge color="grey" size="small" rounded="full">
-              {lang.toUpperCase()}
-            </Badge>
-
             {favorites.length > 0 && (
               <Badge color="red" size="small" rounded="full">
                 <Heart fill="red" />
@@ -148,28 +146,7 @@ const ProductSearchResult: React.FC = () => {
               </Badge>
             )}
 
-            {!isFullscreen && !isPip && (
-              <>
-                <IconButton
-                  variant="transparent"
-                  size="small"
-                  onClick={() => requestDisplayMode("pip")}
-                  title="Picture-in-picture"
-                >
-                  <SquareTwoStackMini />
-                </IconButton>
-                <IconButton
-                  variant="transparent"
-                  size="small"
-                  onClick={() => requestDisplayMode("fullscreen")}
-                  title="Fullscreen"
-                >
-                  <ArrowsPointingOutMini />
-                </IconButton>
-              </>
-            )}
-
-            {(isFullscreen || isPip) && (
+            {isFullscreen ? (
               <IconButton
                 variant="transparent"
                 size="small"
@@ -178,17 +155,23 @@ const ProductSearchResult: React.FC = () => {
               >
                 <XMarkMini />
               </IconButton>
+            ) : (
+              <IconButton
+                variant="transparent"
+                size="small"
+                onClick={() => requestDisplayMode("fullscreen")}
+                title="Fullscreen"
+              >
+                <ArrowsPointingOutMini />
+              </IconButton>
             )}
           </div>
 
-          {/* Header */}
           <div className="p-8 pb-4">
-            <Text size="small" className="text-secondary mb-1">
-              Medusa Store
-            </Text>
             <Heading level="h2" className="mb-1">
-              Products
+              Medusa Store
             </Heading>
+
             <Text size="base" className="text-secondary">
               {query
                 ? `Showing results for "${query}" (${results.length} found)`
@@ -284,17 +267,17 @@ const ProductSearchResult: React.FC = () => {
                       )}
 
                       {/* Variants & Pricing */}
-                      {selectedProduct.variants.length > 0 && (
+                      {selectedProduct.variants?.length > 0 && (
                         <div className="mb-3">
                           <Text
                             size="small"
                             weight="plus"
                             className="text-default mb-1"
                           >
-                            Variants ({selectedProduct.variants.length})
+                            Variants ({selectedProduct.variants?.length ?? 0})
                           </Text>
                           <div className="flex flex-wrap gap-1.5">
-                            {selectedProduct.variants.map((v) => {
+                            {(selectedProduct.variants ?? []).map((v) => {
                               const price = v.prices[0];
                               return (
                                 <Badge
@@ -315,9 +298,9 @@ const ProductSearchResult: React.FC = () => {
                       )}
 
                       {/* Options */}
-                      {selectedProduct.options.length > 0 && (
+                      {selectedProduct.options?.length > 0 && (
                         <div className="mb-3">
-                          {selectedProduct.options.map((opt) => (
+                          {(selectedProduct.options ?? []).map((opt) => (
                             <div key={opt.title} className="mb-1">
                               <Text
                                 size="small"
@@ -338,9 +321,9 @@ const ProductSearchResult: React.FC = () => {
                       )}
 
                       {/* Tags */}
-                      {selectedProduct.tags.length > 0 && (
+                      {selectedProduct.tags?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {selectedProduct.tags.map((tag) => (
+                          {(selectedProduct.tags ?? []).map((tag) => (
                             <Badge
                               key={tag}
                               color="blue"
@@ -372,16 +355,6 @@ const ProductSearchResult: React.FC = () => {
               </div>
             </Container>
           )}
-
-          <Accordion
-            items={[
-              {
-                question: "About this store",
-                answer:
-                  "This widget connects to a MedusaJS backend to browse products. Click any product card to see full details including variants, pricing, and options.",
-              },
-            ]}
-          />
         </div>
       </AppsSDKUIProvider>
     </McpUseProvider>

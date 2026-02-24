@@ -49,7 +49,7 @@ a {
 /* Hover effect styles for carousel items */
 .carousel-item {
   position: relative;
-  container-type: size;
+  container-type: inline-size;
   cursor: pointer;
   transition-property: translate, scale;
   transition-duration: 0.12s;

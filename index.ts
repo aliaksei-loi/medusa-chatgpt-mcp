@@ -5,6 +5,7 @@ import Medusa from "@medusajs/medusa-js";
 const medusa = new Medusa({
   baseUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
   maxRetries: 3,
+  publishableApiKey: process.env.MEDUSA_PUBLISHABLE_KEY || "testkey",
 });
 
 const server = new MCPServer({
@@ -124,7 +125,9 @@ server.tool(
     name: "get-product-details",
     description: "Get detailed information about a specific product by its ID",
     schema: z.object({
-      product_id: z.string().describe("The Medusa product ID (e.g. prod_01...)"),
+      product_id: z
+        .string()
+        .describe("The Medusa product ID (e.g. prod_01...)"),
     }),
     annotations: { readOnlyHint: true },
     outputSchema: z.object({

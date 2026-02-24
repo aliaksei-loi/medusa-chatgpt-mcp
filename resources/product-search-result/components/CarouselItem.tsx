@@ -13,6 +13,7 @@ export interface CarouselItemProps {
 
 function formatPrice(amount: number | null, currencyCode: string): string {
   if (amount === null) return "N/A";
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currencyCode.toUpperCase(),
@@ -27,7 +28,7 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
 }) => {
   return (
     <div
-      className="carousel-item w-44 min-w-[11rem] rounded-xl border border-subtle bg-surface-base cursor-pointer flex flex-col overflow-hidden"
+      className="carousel-item w-44 min-w-44 rounded-xl border border-subtle bg-surface-base cursor-pointer flex flex-col overflow-hidden"
       onClick={onClick}
     >
       {onToggleFavorite && (
@@ -43,7 +44,6 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
           {isFavorite ? <Heart fill="red" /> : <Heart />}
         </IconButton>
       )}
-
       {/* Product thumbnail */}
       <div className="carousel-item-bg">
         {product.thumbnail && (
@@ -55,7 +55,7 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
           <Image
             src={product.thumbnail}
             alt={product.title}
-            className="w-24 h-24 object-contain"
+            className="object-contain"
           />
         ) : (
           <div className="w-24 h-24 flex items-center justify-center text-tertiary text-3xl">
@@ -63,7 +63,6 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
           </div>
         )}
       </div>
-
       {/* Product info overlay at bottom */}
       <div className="relative z-10 p-2.5 pt-0">
         <p className="text-xs font-medium text-default truncate">
