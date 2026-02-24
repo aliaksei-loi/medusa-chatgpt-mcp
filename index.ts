@@ -64,6 +64,10 @@ function toWidgetProduct(product: any) {
     currency_code,
     collection: product.collection?.title ?? null,
     variants_count: product.variants?.length ?? 0,
+    inventory_quantity: (product.variants ?? []).reduce(
+      (acc: number, v: any) => acc + ((v.inventory_quantity as number) ?? 0),
+      0
+    ),
   };
 }
 

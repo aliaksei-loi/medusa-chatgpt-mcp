@@ -10,6 +10,7 @@ export const productSchema = z.object({
   currency_code: z.string().describe("Price currency code"),
   collection: z.string().nullable().describe("Collection name"),
   variants_count: z.number().describe("Number of variants"),
+  inventory_quantity: z.number().describe("Total inventory quantity across all variants"),
 });
 
 export type Product = z.infer<typeof productSchema>;

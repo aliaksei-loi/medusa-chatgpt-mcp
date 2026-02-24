@@ -56,7 +56,7 @@ a {
   transition-timing-function: cubic-bezier(0.645, 0.045, 0.355, 1);
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 .carousel-item:active {
