@@ -25,7 +25,8 @@
     "dev": "NODE_OPTIONS=\"--localstorage-file=.mcp-use/localstorage\" mcp-use dev",
     "start": "mcp-use start",
     "deploy": "mcp-use deploy",
-    "postinstall": "mcp-use generate-types || true"
+    "postinstall": "mcp-use generate-types || true",
+    "tunnel": "npx @mcp-use/tunnel 3000"
   },
   "dependencies": {
     "@medusajs/icons": "^2.13.1",

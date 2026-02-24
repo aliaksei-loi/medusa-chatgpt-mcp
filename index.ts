@@ -5,7 +5,7 @@ import Medusa from "@medusajs/medusa-js";
 const medusa = new Medusa({
   baseUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
   maxRetries: 3,
-  publishableApiKey: process.env.MEDUSA_PUBLISHABLE_KEY || "testkey",
+  publishableApiKey: process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey",
 });
 
 const server = new MCPServer({
@@ -66,8 +66,9 @@ function toWidgetProduct(product: any) {
     variants_count: product.variants?.length ?? 0,
     inventory_quantity: (product.variants ?? []).reduce(
       (acc: number, v: any) => acc + ((v.inventory_quantity as number) ?? 0),
-      0
+      0,
     ),
+    default_variant_id: product.variants?.[0]?.id ?? null,
   };
 }
 
@@ -134,42 +135,17 @@ server.tool(
         .describe("The Medusa product ID (e.g. prod_01...)"),
     }),
     annotations: { readOnlyHint: true },
-    outputSchema: z.object({
-      id: z.string(),
-      title: z.string(),
-      handle: z.string().nullable(),
-      description: z.string().nullable(),
-      thumbnail: z.string().nullable(),
-      images: z.array(z.string()),
-      options: z.array(
-        z.object({
-          title: z.string(),
-          values: z.array(z.string()),
-        }),
-      ),
-      variants: z.array(
-        z.object({
-          id: z.string(),
-          title: z.string(),
-          sku: z.string().nullable(),
-          inventory_quantity: z.number(),
-          prices: z.array(
-            z.object({
-              amount: z.number(),
-              currency_code: z.string(),
-            }),
-          ),
-        }),
-      ),
-      collection: z.string().nullable(),
-      tags: z.array(z.string()),
-    }),
+    widget: {
+      name: "product-detail",
+      invoking: "Loading product details...",
+      invoked: "Product loaded",
+    },
   },
   async ({ product_id }) => {
     try {
       const { product } = await medusa.products.retrieve(product_id);
 
-      return object({
+      const productData = {
         id: product.id!,
         title: product.title!,
         handle: product.handle ?? null,
@@ -192,6 +168,13 @@ server.tool(
         })),
         collection: (product.collection?.title as string) ?? null,
         tags: (product.tags ?? []).map((t: any) => t.value as string),
+      };
+
+      return widget({
+        props: productData,
+        output: text(
+          `Product: ${productData.title}${productData.collection ? ` (${productData.collection})` : ""} — ${productData.variants.length} variant(s)`,
+        ),
       });
     } catch (err) {
       console.error("Failed to retrieve product:", err);
@@ -199,6 +182,59 @@ server.tool(
         `Failed to retrieve product ${product_id}: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     }
+  },
+);
+
+/**
+ * TOOL: View cart
+ * Displays the shopping cart with items, totals and checkout options.
+ */
+server.tool(
+  {
+    name: "view-cart",
+    description:
+      "Display the shopping cart with all items, quantities, totals and options to continue shopping or modify the cart",
+    schema: z.object({
+      items: z
+        .array(
+          z.object({
+            id: z.string().describe("Cart line item ID"),
+            productId: z.string().describe("Product ID"),
+            variantId: z.string().nullable().describe("Variant ID"),
+            title: z.string().describe("Product title"),
+            variantTitle: z.string().nullable().describe("Variant title"),
+            thumbnail: z.string().nullable().describe("Thumbnail image URL"),
+            quantity: z.number().describe("Quantity"),
+            price: z.number().nullable().describe("Price in cents"),
+            currencyCode: z.string().describe("Currency code"),
+          }),
+        )
+        .describe("Cart items to display"),
+      currencyCode: z
+        .string()
+        .optional()
+        .describe("Cart currency code (defaults to first item's currency or usd)"),
+    }),
+    annotations: { readOnlyHint: true },
+    widget: {
+      name: "cart",
+      invoking: "Loading cart...",
+      invoked: "Cart loaded",
+    },
+  },
+  async ({ items, currencyCode }) => {
+    const currency =
+      currencyCode ?? items[0]?.currencyCode ?? "usd";
+    const totalQuantity = items.reduce((acc, i) => acc + i.quantity, 0);
+
+    return widget({
+      props: { items, currencyCode: currency },
+      output: text(
+        totalQuantity > 0
+          ? `Shopping cart: ${totalQuantity} item${totalQuantity !== 1 ? "s" : ""}`
+          : "Your shopping cart is empty",
+      ),
+    });
   },
 );
 

@@ -9,6 +9,7 @@ interface CarouselProps {
   favorites?: string[];
   onSelectProduct: (productId: string) => void;
   onToggleFavorite?: (productId: string) => void;
+  onAddToCart?: (product: Product) => void;
 }
 
 export const Carousel: React.FC<CarouselProps> = ({
@@ -16,6 +17,7 @@ export const Carousel: React.FC<CarouselProps> = ({
   favorites = [],
   onSelectProduct,
   onToggleFavorite,
+  onAddToCart,
 }) => {
   const carouselContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,7 @@ export const Carousel: React.FC<CarouselProps> = ({
                   ? () => onToggleFavorite(product.id)
                   : undefined
               }
+              onAddToCart={onAddToCart}
             />
           ))}
         </Animate>

@@ -12,8 +12,10 @@ import "../styles.css";
 import { Carousel } from "./components/Carousel";
 import { CarouselSkeleton } from "./components/CarouselSkeleton";
 import { Accordion } from "./components/Accordion";
-import type { ProductSearchResultProps } from "./types";
+import type { Product, ProductSearchResultProps } from "./types";
 import { propSchema } from "./types";
+
+import { CartProvider, useCart, CartButton, CartDrawer } from "../shared/cart";
 
 import {
   Badge,
@@ -47,7 +49,9 @@ export const widgetMetadata: WidgetMetadata = {
   },
 };
 
-type FavoritesState = { favorites: string[] };
+type WidgetState = {
+  favorites: string[];
+};
 
 function formatPrice(amount: number | null, currencyCode: string): string {
   if (amount === null) return "N/A";
@@ -58,7 +62,7 @@ function formatPrice(amount: number | null, currencyCode: string): string {
   }).format(amount / 100);
 }
 
-const ProductSearchResult: React.FC = () => {
+const ProductSearchResultInner: React.FC = () => {
   const {
     props,
     isPending,
@@ -68,13 +72,15 @@ const ProductSearchResult: React.FC = () => {
     locale,
     state,
     setState,
-  } = useWidget<ProductSearchResultProps, FavoritesState>();
+  } = useWidget<ProductSearchResultProps, WidgetState>();
 
   const {
     callTool: getProductDetails,
     data: productDetailsData,
     isPending: isLoadingDetails,
   } = useCallTool("get-product-details");
+
+  const { addItem } = useCart();
 
   const selectedProduct = productDetailsData?.structuredContent as
     | {
@@ -110,252 +116,316 @@ const ProductSearchResult: React.FC = () => {
     [state, setState],
   );
 
+  const handleAddToCart = useCallback(
+    (product: Product) => {
+      addItem({
+        productId: product.id,
+        variantId: product.default_variant_id,
+        title: product.title,
+        variantTitle: null,
+        thumbnail: product.thumbnail,
+        quantity: 1,
+        price: product.price,
+        currencyCode: product.currency_code,
+      });
+    },
+    [addItem],
+  );
+
+  // Add to cart from the detail view (uses first variant)
+  const handleDetailAddToCart = useCallback(() => {
+    if (!selectedProduct) return;
+    const firstVariant = selectedProduct.variants?.[0];
+    const price = firstVariant?.prices?.[0];
+    addItem({
+      productId: selectedProduct.id,
+      variantId: firstVariant?.id ?? null,
+      title: selectedProduct.title,
+      variantTitle: firstVariant?.title ?? null,
+      thumbnail: selectedProduct.thumbnail,
+      quantity: 1,
+      price: price?.amount ?? null,
+      currencyCode: price?.currency_code ?? "usd",
+    });
+  }, [selectedProduct, addItem]);
+
   if (isPending) {
     return (
-      <McpUseProvider>
-        <div className="relative bg-surface-elevated border border-default rounded-3xl">
-          <div className="p-8 pb-4">
-            <Text size="small" className="text-secondary mb-1">
-              Medusa Store
-            </Text>
-            <Heading level="h2" className="mb-3">
-              Products
-            </Heading>
-            <div className="h-5 w-48 rounded-md bg-default/10 animate-pulse" />
-          </div>
-          <CarouselSkeleton />
+      <div className="relative bg-surface-elevated border border-default rounded-3xl">
+        <div className="p-8 pb-4">
+          <Text size="small" className="text-secondary mb-1">
+            Medusa Store
+          </Text>
+          <Heading level="h2" className="mb-3">
+            Products
+          </Heading>
+          <div className="h-5 w-48 rounded-md bg-default/10 animate-pulse" />
         </div>
-      </McpUseProvider>
+        <CarouselSkeleton />
+      </div>
     );
   }
 
   const { query, results } = props;
   const isFullscreen = displayMode === "fullscreen";
-  const isPip = displayMode === "pip";
-  const lang = locale?.split("-")[0] ?? "en";
 
   return (
-    <McpUseProvider>
-      <AppsSDKUIProvider linkComponent={Link}>
-        <div className="relative bg-surface-elevated border border-default rounded-3xl">
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-            {favorites.length > 0 && (
-              <Badge color="red" size="small" rounded="full">
-                <Heart fill="red" />
-                {favorites.length}
-              </Badge>
-            )}
+    <div className="relative bg-surface-elevated border border-default rounded-3xl">
+      {/* Header */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <CartButton />
 
-            {isFullscreen ? (
-              <IconButton
-                variant="transparent"
-                size="small"
-                onClick={() => requestDisplayMode("inline")}
-                title="Exit"
-              >
-                <XMarkMini />
-              </IconButton>
-            ) : (
-              <IconButton
-                variant="transparent"
-                size="small"
-                onClick={() => requestDisplayMode("fullscreen")}
-                title="Fullscreen"
-              >
-                <ArrowsPointingOutMini />
-              </IconButton>
-            )}
-          </div>
+        {favorites.length > 0 && (
+          <Badge color="red" size="small" rounded="full">
+            <Heart fill="red" />
+            {favorites.length}
+          </Badge>
+        )}
 
-          <div className="p-8 pb-4">
-            <Heading level="h2" className="mb-1">
-              Medusa Store
-            </Heading>
+        {isFullscreen ? (
+          <IconButton
+            variant="transparent"
+            size="small"
+            onClick={() => requestDisplayMode("inline")}
+            title="Exit"
+          >
+            <XMarkMini />
+          </IconButton>
+        ) : (
+          <IconButton
+            variant="transparent"
+            size="small"
+            onClick={() => requestDisplayMode("fullscreen")}
+            title="Fullscreen"
+          >
+            <ArrowsPointingOutMini />
+          </IconButton>
+        )}
+      </div>
 
-            <Text size="base" className="text-secondary">
-              {query
-                ? `Showing results for "${query}" (${results.length} found)`
-                : `Browse all products (${results.length})`}
-            </Text>
-          </div>
+      <div className="p-8 pb-4">
+        <Heading level="h2" className="mb-1">
+          Medusa Store
+        </Heading>
 
-          {/* Product carousel */}
-          {results.length > 0 ? (
-            <Carousel
-              results={results}
-              favorites={favorites}
-              onSelectProduct={(productId: string) =>
-                getProductDetails({ product_id: productId })
-              }
-              onToggleFavorite={toggleFavorite}
-            />
-          ) : (
-            <div className="px-8 py-12 text-center">
-              <Text size="base" className="text-tertiary">
-                No products found
-                {query ? ` for "${query}"` : ""}
-              </Text>
-            </div>
-          )}
+        <Text size="base" className="text-secondary">
+          {query
+            ? `Showing results for "${query}" (${results.length} found)`
+            : `Browse all products (${results.length})`}
+        </Text>
+      </div>
 
-          {/* Product detail view */}
-          {selectedProduct && (
-            <Container className="mx-8 my-6">
-              <div className="flex items-start gap-6">
-                {/* Product image */}
-                <div className="rounded-xl overflow-hidden shrink-0 bg-surface-base border border-subtle">
-                  {selectedProduct.thumbnail ? (
-                    <Image
-                      src={selectedProduct.thumbnail}
-                      alt={selectedProduct.title}
-                      className="w-28 h-28 object-contain p-2"
-                    />
-                  ) : (
-                    <div className="w-28 h-28 flex items-center justify-center text-tertiary text-4xl">
-                      ?
-                    </div>
-                  )}
+      {/* Product carousel */}
+      {results.length > 0 ? (
+        <Carousel
+          results={results}
+          favorites={favorites}
+          onSelectProduct={(productId: string) =>
+            getProductDetails({ product_id: productId })
+          }
+          onToggleFavorite={toggleFavorite}
+          onAddToCart={handleAddToCart}
+        />
+      ) : (
+        <div className="px-8 py-12 text-center">
+          <Text size="base" className="text-tertiary">
+            No products found
+            {query ? ` for "${query}"` : ""}
+          </Text>
+        </div>
+      )}
+
+      {/* Product detail view */}
+      {selectedProduct && (
+        <Container className="mx-8 my-6">
+          <div className="flex items-start gap-6">
+            {/* Product image */}
+            <div className="rounded-xl overflow-hidden shrink-0 bg-surface-base border border-subtle">
+              {selectedProduct.thumbnail ? (
+                <Image
+                  src={selectedProduct.thumbnail}
+                  alt={selectedProduct.title}
+                  className="w-28 h-28 object-contain p-2"
+                />
+              ) : (
+                <div className="w-28 h-28 flex items-center justify-center text-tertiary text-4xl">
+                  ?
                 </div>
+              )}
+            </div>
 
-                {/* Product info */}
-                <div className="flex-1 min-w-0">
-                  {isLoadingDetails ? (
-                    <div className="space-y-2">
-                      <div className="animate-pulse h-5 w-40 bg-surface-elevated rounded" />
-                      <div className="animate-pulse h-4 w-64 bg-surface-elevated rounded" />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Heading level="h3">{selectedProduct.title}</Heading>
-                        <IconButton
-                          variant="transparent"
-                          size="small"
-                          onClick={() => toggleFavorite(selectedProduct.id)}
-                          title={
-                            favorites.includes(selectedProduct.id)
-                              ? "Remove from favorites"
-                              : "Add to favorites"
-                          }
-                        >
-                          {favorites.includes(selectedProduct.id) ? (
-                            <Heart fill="red" />
-                          ) : (
-                            <Heart />
-                          )}
-                        </IconButton>
-                      </div>
-
-                      {selectedProduct.collection && (
-                        <Badge
-                          color="grey"
-                          size="small"
-                          rounded="full"
-                          className="mb-2"
-                        >
-                          {selectedProduct.collection}
-                        </Badge>
+            {/* Product info */}
+            <div className="flex-1 min-w-0">
+              {isLoadingDetails ? (
+                <div className="space-y-2">
+                  <div className="animate-pulse h-5 w-40 bg-surface-elevated rounded" />
+                  <div className="animate-pulse h-4 w-64 bg-surface-elevated rounded" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Heading level="h3">{selectedProduct.title}</Heading>
+                    <IconButton
+                      variant="transparent"
+                      size="small"
+                      onClick={() => toggleFavorite(selectedProduct.id)}
+                      title={
+                        favorites.includes(selectedProduct.id)
+                          ? "Remove from favorites"
+                          : "Add to favorites"
+                      }
+                    >
+                      {favorites.includes(selectedProduct.id) ? (
+                        <Heart fill="red" />
+                      ) : (
+                        <Heart />
                       )}
+                    </IconButton>
+                  </div>
 
-                      {selectedProduct.description && (
-                        <Text
-                          size="small"
-                          className="text-secondary mb-3 line-clamp-2"
-                        >
-                          {selectedProduct.description}
-                        </Text>
-                      )}
+                  {selectedProduct.collection && (
+                    <Badge
+                      color="grey"
+                      size="small"
+                      rounded="full"
+                      className="mb-2"
+                    >
+                      {selectedProduct.collection}
+                    </Badge>
+                  )}
 
-                      {/* Variants & Pricing */}
-                      {selectedProduct.variants?.length > 0 && (
-                        <div className="mb-3">
-                          <Text
-                            size="small"
-                            weight="plus"
-                            className="text-default mb-1"
-                          >
-                            Variants ({selectedProduct.variants?.length ?? 0})
-                          </Text>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(selectedProduct.variants ?? []).map((v) => {
-                              const price = v.prices[0];
-                              return (
-                                <Badge
-                                  key={v.id}
-                                  color="grey"
-                                  size="small"
-                                  rounded="full"
-                                >
-                                  {v.title}
-                                  {price
-                                    ? ` · ${formatPrice(price.amount, price.currency_code)}`
-                                    : ""}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                  {selectedProduct.description && (
+                    <Text
+                      size="small"
+                      className="text-secondary mb-3 line-clamp-2"
+                    >
+                      {selectedProduct.description}
+                    </Text>
+                  )}
 
-                      {/* Options */}
-                      {selectedProduct.options?.length > 0 && (
-                        <div className="mb-3">
-                          {(selectedProduct.options ?? []).map((opt) => (
-                            <div key={opt.title} className="mb-1">
-                              <Text
-                                size="small"
-                                weight="plus"
-                                className="text-default"
-                              >
-                                {opt.title}:
-                              </Text>
-                              <Text
-                                size="small"
-                                className="text-secondary ml-1"
-                              >
-                                {opt.values.join(", ")}
-                              </Text>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Tags */}
-                      {selectedProduct.tags?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {(selectedProduct.tags ?? []).map((tag) => (
+                  {/* Variants & Pricing */}
+                  {selectedProduct.variants?.length > 0 && (
+                    <div className="mb-3">
+                      <Text
+                        size="small"
+                        weight="plus"
+                        className="text-default mb-1"
+                      >
+                        Variants ({selectedProduct.variants?.length ?? 0})
+                      </Text>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(selectedProduct.variants ?? []).map((v) => {
+                          const price = v.prices[0];
+                          return (
                             <Badge
-                              key={tag}
-                              color="blue"
+                              key={v.id}
+                              color="grey"
                               size="small"
                               rounded="full"
                             >
-                              {tag}
+                              {v.title}
+                              {price
+                                ? ` · ${formatPrice(price.amount, price.currency_code)}`
+                                : ""}
                             </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      <Button
-                        variant="secondary"
-                        size="small"
-                        className="mt-2"
-                        onClick={() =>
-                          sendFollowUpMessage(
-                            `Tell me more about the product "${selectedProduct.title}"`,
-                          )
-                        }
-                      >
-                        <ChatBubble className="w-3.5 h-3.5" />
-                        Ask AI about {selectedProduct.title}
-                      </Button>
-                    </>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
-            </Container>
-          )}
-        </div>
+
+                  {/* Options */}
+                  {selectedProduct.options?.length > 0 && (
+                    <div className="mb-3">
+                      {(selectedProduct.options ?? []).map((opt) => (
+                        <div key={opt.title} className="mb-1">
+                          <Text
+                            size="small"
+                            weight="plus"
+                            className="text-default"
+                          >
+                            {opt.title}:
+                          </Text>
+                          <Text
+                            size="small"
+                            className="text-secondary ml-1"
+                          >
+                            {opt.values.join(", ")}
+                          </Text>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {selectedProduct.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {(selectedProduct.tags ?? []).map((tag) => (
+                        <Badge
+                          key={tag}
+                          color="blue"
+                          size="small"
+                          rounded="full"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="primary"
+                      size="small"
+                      onClick={handleDetailAddToCart}
+                    >
+                      Add to Cart
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      onClick={() =>
+                        sendFollowUpMessage(
+                          `Show me full details for product "${selectedProduct.title}" (product ID: ${selectedProduct.id})`,
+                        )
+                      }
+                    >
+                      <SquareTwoStackMini className="w-3.5 h-3.5" />
+                      Open full details
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      onClick={() =>
+                        sendFollowUpMessage(
+                          `Tell me more about the product "${selectedProduct.title}"`,
+                        )
+                      }
+                    >
+                      <ChatBubble className="w-3.5 h-3.5" />
+                      Ask AI
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </Container>
+      )}
+
+      {/* Cart Drawer */}
+      <CartDrawer />
+    </div>
+  );
+};
+
+const ProductSearchResult: React.FC = () => {
+  return (
+    <McpUseProvider>
+      <AppsSDKUIProvider linkComponent={Link}>
+        <CartProvider>
+          <ProductSearchResultInner />
+        </CartProvider>
       </AppsSDKUIProvider>
     </McpUseProvider>
   );

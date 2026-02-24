@@ -11,6 +11,7 @@ export const productSchema = z.object({
   collection: z.string().nullable().describe("Collection name"),
   variants_count: z.number().describe("Number of variants"),
   inventory_quantity: z.number().describe("Total inventory quantity across all variants"),
+  default_variant_id: z.string().nullable().describe("ID of the first/default variant"),
 });
 
 export type Product = z.infer<typeof productSchema>;

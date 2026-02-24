@@ -7,6 +7,7 @@ export interface CarouselItemProps {
   isFavorite?: boolean;
   onClick: () => void;
   onToggleFavorite?: () => void;
+  onAddToCart?: (product: Product) => void;
 }
 
 function formatPrice(amount: number | null, currencyCode: string): string {
@@ -51,6 +52,7 @@ function getStockColor(quantity: number): string {
 export const CarouselItem: React.FC<CarouselItemProps> = ({
   product,
   onClick,
+  onAddToCart,
 }) => {
   const inventoryQuantity = product.inventory_quantity ?? 0;
 
@@ -114,6 +116,7 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
             className="w-7 h-7 rounded-full bg-neutral-900 flex items-center justify-center hover:bg-neutral-800 transition-colors"
             onClick={(e) => {
               e.stopPropagation();
+              onAddToCart?.(product);
             }}
           >
             <ShoppingBag />
