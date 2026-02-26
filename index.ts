@@ -352,13 +352,32 @@ server.tool(
       currencyCode ?? items[0]?.currencyCode ?? "usd";
     const totalQuantity = items.reduce((acc, i) => acc + i.quantity, 0);
 
+    const fmt = (amount: number | null, code: string) =>
+      amount != null
+        ? new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: code.toUpperCase(),
+          }).format(amount / 100)
+        : "N/A";
+
+    let outputText: string;
+    if (totalQuantity === 0) {
+      outputText = "Your shopping cart is empty";
+    } else {
+      const lines = items.map(
+        (i) =>
+          `- ${i.quantity}x "${i.title}"${i.variantTitle ? ` (${i.variantTitle})` : ""} — ${fmt(i.price != null ? i.price * i.quantity : null, i.currencyCode)}`,
+      );
+      const total = items.reduce(
+        (acc, i) => acc + (i.price ?? 0) * i.quantity,
+        0,
+      );
+      outputText = `Shopping cart (${totalQuantity} item${totalQuantity !== 1 ? "s" : ""}):\n${lines.join("\n")}\nTotal: ${fmt(total, currency)}`;
+    }
+
     return widget({
       props: { items, currencyCode: currency },
-      output: text(
-        totalQuantity > 0
-          ? `Shopping cart: ${totalQuantity} item${totalQuantity !== 1 ? "s" : ""}`
-          : "Your shopping cart is empty",
-      ),
+      output: text(outputText),
     });
   },
 );

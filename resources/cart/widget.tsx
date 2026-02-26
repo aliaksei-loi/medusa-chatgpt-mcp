@@ -4,14 +4,15 @@ import {
   useWidget,
   type WidgetMetadata,
 } from "mcp-use/react";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import "../styles.css";
 import { cartWidgetSchema } from "./types";
 import type { CartWidgetProps } from "./types";
 import { CartItemFull } from "./components/CartItemFull";
 import { CartTotals } from "./components/CartTotals";
-import { CartProvider, useCart } from "../shared/cart";
+import { CartProvider, useCart, writeCart } from "../shared/cart";
+import type { CartItem } from "../shared/cart";
 
 import {
   Button,
@@ -68,6 +69,7 @@ function ShoppingBagIcon({ size = 20 }: { size?: number }) {
 
 const CartWidgetInner: React.FC = () => {
   const {
+    props,
     isPending,
     displayMode,
     requestDisplayMode,
@@ -76,14 +78,32 @@ const CartWidgetInner: React.FC = () => {
 
   // Read cart state from the shared CartProvider (backed by localStorage)
   const {
-    items,
-    totalItems,
-    subtotal,
-    currencyCode,
+    items: localItems,
+    totalItems: localTotalItems,
+    subtotal: localSubtotal,
+    currencyCode: localCurrencyCode,
     removeItem,
     updateQuantity,
     clearCart,
   } = useCart();
+
+  // When the view-cart tool provides items via props, use them as source of
+  // truth and sync into localStorage so other widgets pick them up.
+  const hasSynced = useRef(false);
+  useEffect(() => {
+    if (!isPending && props?.items && props.items.length > 0 && !hasSynced.current) {
+      hasSynced.current = true;
+      writeCart(props.items as CartItem[]);
+    }
+  }, [isPending, props?.items]);
+
+  // Use props items when available (server-authoritative), fall back to localStorage
+  const items = (!isPending && props?.items && props.items.length > 0)
+    ? (props.items as CartItem[])
+    : localItems;
+  const totalItems = items.reduce((acc, i) => acc + i.quantity, 0);
+  const subtotal = items.reduce((acc, i) => acc + (i.price ?? 0) * i.quantity, 0);
+  const currencyCode = items[0]?.currencyCode ?? localCurrencyCode;
 
   if (isPending) {
     return (
