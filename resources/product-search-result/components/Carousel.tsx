@@ -27,10 +27,10 @@ export const Carousel: React.FC<CarouselProps> = ({
   return (
     <div
       ref={scrollContainerRef}
-      className="carousel-scroll-container w-full overflow-x-auto overflow-y-visible pl-8"
+      className="carousel-scroll-container w-full overflow-x-auto overflow-y-visible px-6"
     >
       <div ref={carouselContainerRef} className="overflow-visible">
-        <Animate className="flex gap-4">
+        <Animate className="flex gap-3">
           {results.map((product, index) => (
             <CarouselItem
               key={product.id ?? index}

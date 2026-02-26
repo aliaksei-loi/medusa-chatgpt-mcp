@@ -60,7 +60,6 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
     <div
       className="carousel-item w-44 min-w-44 rounded-lg bg-white cursor-pointer flex flex-col overflow-hidden mt-1"
       style={{
-        // aspectRatio: "3/5",
         boxShadow: "0 0 0 1px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.1)",
       }}
       onClick={onClick}
@@ -71,12 +70,16 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
           <Image src={product.thumbnail} alt={product.title} />
         )}
       </div>
-      <div className="carousel-item-content p-6">
+      <div
+        className="carousel-item-content p-6"
+        style={{ height: "150px", flex: "none" }}
+      >
         {product.thumbnail ? (
           <Image
             src={product.thumbnail}
             alt={product.title}
             className="object-contain"
+            style={{ maxHeight: "100%", maxWidth: "100%" }}
           />
         ) : (
           <div className="w-24 h-24 flex items-center justify-center text-neutral-400 text-3xl">
@@ -105,12 +108,6 @@ export const CarouselItem: React.FC<CarouselItemProps> = ({
 
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-1">
-            <span className={`text-xs ${getStockColor(inventoryQuantity)}`}>
-              •
-            </span>
-            <span className="text-neutral-500 text-[0.55rem]">
-              {inventoryQuantity} left
-            </span>
           </div>
           <button
             className="w-7 h-7 rounded-full bg-neutral-900 flex items-center justify-center hover:bg-neutral-800 transition-colors"

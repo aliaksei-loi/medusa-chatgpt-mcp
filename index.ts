@@ -1,12 +1,48 @@
 import { MCPServer, error, object, text, widget } from "mcp-use/server";
 import { z } from "zod";
-import Medusa from "@medusajs/medusa-js";
 
-const medusa = new Medusa({
-  baseUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
-  maxRetries: 3,
-  publishableApiKey: process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey",
-});
+const MEDUSA_URL =
+  process.env.MEDUSA_BACKEND_URL || "http://localhost:9000";
+const PUBLISHABLE_KEY =
+  process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey";
+
+/** Direct fetch helper for the Medusa v2 Store API */
+async function medusaFetch<T>(
+  path: string,
+  params: Record<string, string | number | undefined> = {},
+): Promise<T> {
+  const url = new URL(path, MEDUSA_URL);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  const res = await fetch(url.toString(), {
+    headers: {
+      "x-publishable-api-key": PUBLISHABLE_KEY,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Medusa API ${res.status}: ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Cached default region for pricing context */
+let defaultRegionId: string | undefined;
+let defaultCurrencyCode = "usd";
+
+async function ensureRegion() {
+  if (defaultRegionId) return;
+  try {
+    const data = await medusaFetch<{ regions: any[] }>("/store/regions");
+    if (data.regions.length > 0) {
+      defaultRegionId = data.regions[0].id;
+      defaultCurrencyCode = data.regions[0].currency_code ?? "usd";
+    }
+  } catch (err) {
+    console.warn("Failed to fetch regions:", err);
+  }
+}
 
 const server = new MCPServer({
   name: "medusa-chatgpt-mcp",
@@ -30,20 +66,29 @@ function getLowestPrice(product: any): {
   currency_code: string;
 } {
   let lowest: number | null = null;
-  let currency = "usd";
+  let currency = defaultCurrencyCode;
 
   for (const variant of product.variants ?? []) {
-    // Use calculated_price first (context-aware), fall back to prices array
-    if (variant.calculated_price != null) {
-      if (lowest === null || variant.calculated_price < lowest) {
-        lowest = variant.calculated_price;
+    // Medusa v2: calculated_price is an object with calculated_amount
+    const cp = variant.calculated_price;
+    if (cp != null) {
+      const amount =
+        typeof cp === "number"
+          ? cp
+          : cp.calculated_amount ?? cp.original_amount ?? null;
+      if (amount != null && (lowest === null || amount < lowest)) {
+        lowest = amount;
+        currency =
+          (typeof cp === "object" ? cp.currency_code : null) ??
+          defaultCurrencyCode;
       }
       continue;
     }
+    // Fallback to prices array (v1 style)
     for (const price of variant.prices ?? []) {
       if (lowest === null || price.amount < lowest) {
         lowest = price.amount;
-        currency = price.currency_code ?? "usd";
+        currency = price.currency_code ?? defaultCurrencyCode;
       }
     }
   }
@@ -99,10 +144,17 @@ server.tool(
   },
   async ({ query, limit }) => {
     try {
-      const { products } = await medusa.products.list({
-        q: query || undefined,
-        limit: limit ?? 20,
-      });
+      await ensureRegion();
+      const { products } = await medusaFetch<{ products: any[] }>(
+        "/store/products",
+        {
+          q: query || undefined,
+          limit: limit ?? 20,
+          region_id: defaultRegionId,
+          fields:
+            "*variants.calculated_price,+variants.inventory_quantity",
+        },
+      );
 
       const results = products.map(toWidgetProduct);
 
@@ -143,7 +195,20 @@ server.tool(
   },
   async ({ product_id }) => {
     try {
-      const { product } = await medusa.products.retrieve(product_id);
+      await ensureRegion();
+      const { products } = await medusaFetch<{ products: any[] }>(
+        "/store/products",
+        {
+          id: product_id,
+          region_id: defaultRegionId,
+          fields:
+            "*variants.calculated_price,+variants.inventory_quantity,+metadata,+tags",
+        },
+      );
+      const product = products[0];
+      if (!product) {
+        return error(`Product ${product_id} not found`);
+      }
 
       const productData = {
         id: product.id!,
@@ -156,16 +221,40 @@ server.tool(
           title: opt.title as string,
           values: (opt.values ?? []).map((v: any) => v.value as string),
         })),
-        variants: (product.variants ?? []).map((v: any) => ({
-          id: v.id as string,
-          title: v.title as string,
-          sku: (v.sku as string) ?? null,
-          inventory_quantity: (v.inventory_quantity as number) ?? 0,
-          prices: (v.prices ?? []).map((p: any) => ({
-            amount: p.amount as number,
-            currency_code: p.currency_code as string,
-          })),
-        })),
+        variants: (product.variants ?? []).map((v: any) => {
+          // Build prices array: prefer calculated_price (v2), fall back to prices array (v1)
+          const cp = v.calculated_price;
+          let prices: Array<{ amount: number; currency_code: string }> = [];
+          if (cp != null) {
+            const amount =
+              typeof cp === "number"
+                ? cp
+                : cp.calculated_amount ?? cp.original_amount ?? null;
+            if (amount != null) {
+              prices = [
+                {
+                  amount,
+                  currency_code:
+                    (typeof cp === "object" ? cp.currency_code : null) ??
+                    defaultCurrencyCode,
+                },
+              ];
+            }
+          }
+          if (prices.length === 0) {
+            prices = (v.prices ?? []).map((p: any) => ({
+              amount: p.amount as number,
+              currency_code: p.currency_code as string,
+            }));
+          }
+          return {
+            id: v.id as string,
+            title: v.title as string,
+            sku: (v.sku as string) ?? null,
+            inventory_quantity: (v.inventory_quantity as number) ?? 0,
+            prices,
+          };
+        }),
         collection: (product.collection?.title as string) ?? null,
         tags: (product.tags ?? []).map((t: any) => t.value as string),
       };
@@ -182,6 +271,42 @@ server.tool(
         `Failed to retrieve product ${product_id}: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     }
+  },
+);
+
+/**
+ * TOOL: Add to cart
+ * Called by product widgets when the user clicks "Add to Cart".
+ * Returns a text response so the AI knows what was added.
+ */
+server.tool(
+  {
+    name: "add-to-cart",
+    description:
+      "Add a product to the shopping cart. Called when the user clicks 'Add to Cart' on a product.",
+    schema: z.object({
+      productId: z.string().describe("Product ID"),
+      variantId: z.string().nullable().describe("Variant ID"),
+      title: z.string().describe("Product title"),
+      variantTitle: z.string().nullable().describe("Variant title (e.g. size/color)"),
+      quantity: z.number().describe("Quantity to add"),
+      price: z.number().nullable().describe("Price per unit in cents"),
+      currencyCode: z.string().describe("Currency code (e.g. usd)"),
+    }),
+  },
+  async ({ title, variantTitle, quantity, price, currencyCode }) => {
+    const priceStr =
+      price != null
+        ? new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: currencyCode.toUpperCase(),
+          }).format(price / 100)
+        : "";
+
+    const variant = variantTitle ? ` (${variantTitle})` : "";
+    return text(
+      `Added ${quantity}x "${title}"${variant} to the cart.${priceStr ? ` Price: ${priceStr}` : ""}`,
+    );
   },
 );
 

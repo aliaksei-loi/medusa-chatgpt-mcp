@@ -1,6 +1,7 @@
 import { AppsSDKUIProvider } from "@openai/apps-sdk-ui/components/AppsSDKUIProvider";
 import {
   McpUseProvider,
+  useCallTool,
   useWidget,
   type WidgetMetadata,
 } from "mcp-use/react";
@@ -77,13 +78,14 @@ const ProductDetailInner: React.FC = () => {
   } = useWidget<ProductDetail>();
 
   const { addItem } = useCart();
+  const { callTool: callAddToCart } = useCallTool("add-to-cart");
 
   const handleAddToCart = useCallback(
     (variant?: Variant) => {
       if (!props?.id) return;
       const v = variant ?? props.variants?.[0];
       const price = v?.prices?.[0];
-      addItem({
+      const item = {
         productId: props.id ?? "",
         variantId: v?.id ?? null,
         title: props.title ?? "",
@@ -92,9 +94,19 @@ const ProductDetailInner: React.FC = () => {
         quantity: 1,
         price: price?.amount ?? null,
         currencyCode: price?.currency_code ?? "usd",
+      };
+      addItem(item);
+      callAddToCart({
+        productId: item.productId,
+        variantId: item.variantId,
+        title: item.title,
+        variantTitle: item.variantTitle,
+        quantity: item.quantity,
+        price: item.price,
+        currencyCode: item.currencyCode,
       });
     },
-    [props, addItem],
+    [props, addItem, callAddToCart],
   );
 
   if (isPending) {

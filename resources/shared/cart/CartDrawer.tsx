@@ -54,83 +54,95 @@ export const CartDrawer: React.FC = () => {
       <div
         className="absolute inset-0 z-20 rounded-2xl transition-all duration-200"
         style={{
-          backgroundColor: isCartOpen ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0)",
+          backgroundColor: isCartOpen ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0)",
           backdropFilter: isCartOpen ? "blur(2px)" : "blur(0px)",
           pointerEvents: isCartOpen ? "auto" : "none",
         }}
         onClick={closeCart}
       />
 
-      {/* Drawer panel */}
+      {/* Modal */}
       <div
-        className="absolute top-0 right-0 bottom-0 w-72 bg-white z-30 shadow-xl rounded-r-2xl flex flex-col overflow-hidden transition-transform duration-200 ease-out"
+        className="absolute inset-0 z-30 flex items-start justify-center pt-4 px-4"
         style={{
-          transform: isCartOpen ? "translateX(0)" : "translateX(100%)",
+          pointerEvents: isCartOpen ? "auto" : "none",
         }}
-        onMouseEnter={cancelTimer}
+        onClick={closeCart}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-100">
-          <Heading level="h3" className="text-sm">
-            {totalItems > 0
-              ? `Cart (${totalItems} item${totalItems !== 1 ? "s" : ""})`
-              : "Your cart is empty"}
-          </Heading>
-          <button
-            className="text-neutral-400 hover:text-neutral-600 transition-colors"
-            onClick={closeCart}
-          >
-            <XMarkMini />
-          </button>
-        </div>
+        <div
+          className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full max-w-sm transition-all duration-200 ease-out"
+          style={{
+            opacity: isCartOpen ? 1 : 0,
+            transform: isCartOpen ? "scale(1)" : "scale(0.95)",
+            maxHeight: "min(420px, 90%)",
+            pointerEvents: isCartOpen ? "auto" : "none",
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseEnter={cancelTimer}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-neutral-100 shrink-0">
+            <Heading level="h3" className="text-sm">
+              {totalItems > 0
+                ? `Cart (${totalItems} item${totalItems !== 1 ? "s" : ""})`
+                : "Your cart is empty"}
+            </Heading>
+            <button
+              className="text-neutral-400 hover:text-neutral-600 transition-colors"
+              onClick={closeCart}
+            >
+              <XMarkMini />
+            </button>
+          </div>
 
-        {/* Items */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Text className="text-neutral-400 text-sm mb-1">
-                No items in your cart
+          {/* Items */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Text className="text-neutral-400 text-sm mb-1">
+                  No items in your cart
+                </Text>
+                <Text className="text-neutral-400 text-xs">
+                  Browse products to add items
+                </Text>
+              </div>
+            ) : (
+              <div className="divide-y divide-neutral-100">
+                {items.map((item) => (
+                  <CartItemPreview
+                    key={item.id}
+                    item={item}
+                    onRemove={removeItem}
+                    onUpdateQuantity={updateQuantity}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer with subtotal */}
+          {items.length > 0 && (
+            <div className="border-t border-neutral-100 p-4 flex flex-col gap-3 shrink-0">
+              <div className="flex justify-between items-center">
+                <Text className="text-neutral-600 text-sm">Subtotal</Text>
+                <Text className="text-neutral-950 font-medium text-sm">
+                  {formatPrice(subtotal, currencyCode)}
+                </Text>
+              </div>
+              <Text className="text-neutral-400 text-[0.55rem]">
+                Taxes and shipping calculated at checkout
               </Text>
-              <Text className="text-neutral-400 text-xs">
-                Browse products to add items
-              </Text>
-            </div>
-          ) : (
-            <div className="divide-y divide-neutral-100">
-              {items.map((item) => (
-                <CartItemPreview
-                  key={item.id}
-                  item={item}
-                  onRemove={removeItem}
-                  onUpdateQuantity={updateQuantity}
-                />
-              ))}
+              <Button
+                variant="secondary"
+                size="small"
+                className="w-full"
+                onClick={clearCart}
+              >
+                Clear Cart
+              </Button>
             </div>
           )}
         </div>
-
-        {/* Footer with subtotal */}
-        {items.length > 0 && (
-          <div className="border-t border-neutral-100 p-4 flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-              <Text className="text-neutral-600 text-sm">Subtotal</Text>
-              <Text className="text-neutral-950 font-medium text-sm">
-                {formatPrice(subtotal, currencyCode)}
-              </Text>
-            </div>
-            <Text className="text-neutral-400 text-[0.55rem]">
-              Taxes and shipping calculated at checkout
-            </Text>
-            <Button
-              variant="secondary"
-              size="small"
-              className="w-full"
-              onClick={clearCart}
-            >
-              Clear Cart
-            </Button>
-          </div>
-        )}
       </div>
     </>
   );

@@ -1,9 +1,6 @@
 import React from "react";
 import { Heading, Text, Badge } from "@medusajs/ui";
-import {
-  CheckCircleSolid,
-  ExclamationCircleSolid,
-} from "@medusajs/icons";
+import { CheckCircleSolid, ExclamationCircleSolid } from "@medusajs/icons";
 import type { ProductDetail } from "../types";
 
 interface ProductInfoProps {
@@ -33,14 +30,16 @@ function getCheapestPrice(product: ProductDetail): {
     }
   }
 
-  return cheapest !== null ? { amount: cheapest, currency_code: currency } : null;
+  return cheapest !== null
+    ? { amount: cheapest, currency_code: currency }
+    : null;
 }
 
 export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
   const cheapestPrice = getCheapestPrice(product);
   const inventoryQuantity = product.variants.reduce(
     (acc, v) => acc + v.inventory_quantity,
-    0
+    0,
   );
 
   return (
@@ -52,10 +51,7 @@ export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
             {product.collection}
           </Text>
         )}
-        <Heading
-          level="h1"
-          className="text-2xl leading-tight text-neutral-950"
-        >
+        <Heading level="h1" className="text-2xl leading-tight text-neutral-950">
           {product.title}
         </Heading>
         {product.description && (
@@ -69,13 +65,14 @@ export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
       {cheapestPrice && (
         <div className="flex flex-col">
           <Text className="font-semibold text-xl text-neutral-950">
-            From {formatPrice(cheapestPrice.amount, cheapestPrice.currency_code)}
+            From{" "}
+            {formatPrice(cheapestPrice.amount, cheapestPrice.currency_code)}
           </Text>
           <Text className="text-neutral-500 text-[0.6rem]">Excl. VAT</Text>
         </div>
       )}
 
-      {/* Stock facts */}
+      {/* Stock facts
       <div className="flex flex-col gap-1.5">
         {inventoryQuantity > 10 ? (
           <span className="flex items-center gap-2 text-neutral-600 text-sm">
@@ -94,6 +91,7 @@ export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
           </span>
         )}
       </div>
+      */}
 
       {/* Options */}
       {product.options.length > 0 && (

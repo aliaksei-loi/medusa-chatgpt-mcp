@@ -81,6 +81,7 @@ const ProductSearchResultInner: React.FC = () => {
   } = useCallTool("get-product-details");
 
   const { addItem } = useCart();
+  const { callTool: callAddToCart } = useCallTool("add-to-cart");
 
   const selectedProduct = productDetailsData?.structuredContent as
     | {
@@ -118,7 +119,7 @@ const ProductSearchResultInner: React.FC = () => {
 
   const handleAddToCart = useCallback(
     (product: Product) => {
-      addItem({
+      const item = {
         productId: product.id,
         variantId: product.default_variant_id,
         title: product.title,
@@ -127,9 +128,19 @@ const ProductSearchResultInner: React.FC = () => {
         quantity: 1,
         price: product.price,
         currencyCode: product.currency_code,
+      };
+      addItem(item);
+      callAddToCart({
+        productId: item.productId,
+        variantId: item.variantId,
+        title: item.title,
+        variantTitle: item.variantTitle,
+        quantity: item.quantity,
+        price: item.price,
+        currencyCode: item.currencyCode,
       });
     },
-    [addItem],
+    [addItem, callAddToCart],
   );
 
   // Add to cart from the detail view (uses first variant)
@@ -137,7 +148,7 @@ const ProductSearchResultInner: React.FC = () => {
     if (!selectedProduct) return;
     const firstVariant = selectedProduct.variants?.[0];
     const price = firstVariant?.prices?.[0];
-    addItem({
+    const item = {
       productId: selectedProduct.id,
       variantId: firstVariant?.id ?? null,
       title: selectedProduct.title,
@@ -146,8 +157,18 @@ const ProductSearchResultInner: React.FC = () => {
       quantity: 1,
       price: price?.amount ?? null,
       currencyCode: price?.currency_code ?? "usd",
+    };
+    addItem(item);
+    callAddToCart({
+      productId: item.productId,
+      variantId: item.variantId,
+      title: item.title,
+      variantTitle: item.variantTitle,
+      quantity: item.quantity,
+      price: item.price,
+      currencyCode: item.currencyCode,
     });
-  }, [selectedProduct, addItem]);
+  }, [selectedProduct, addItem, callAddToCart]);
 
   if (isPending) {
     return (
@@ -170,7 +191,7 @@ const ProductSearchResultInner: React.FC = () => {
   const isFullscreen = displayMode === "fullscreen";
 
   return (
-    <div className="relative bg-surface-elevated border border-default rounded-3xl">
+    <div className="relative bg-surface-elevated border border-default rounded-3xl overflow-hidden">
       {/* Header */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <CartButton />
@@ -237,7 +258,7 @@ const ProductSearchResultInner: React.FC = () => {
 
       {/* Product detail view */}
       {selectedProduct && (
-        <Container className="mx-8 my-6">
+        <Container>
           <div className="flex items-start gap-6">
             {/* Product image */}
             <div className="rounded-xl overflow-hidden shrink-0 bg-surface-base border border-subtle">
@@ -346,10 +367,7 @@ const ProductSearchResultInner: React.FC = () => {
                           >
                             {opt.title}:
                           </Text>
-                          <Text
-                            size="small"
-                            className="text-secondary ml-1"
-                          >
+                          <Text size="small" className="text-secondary ml-1">
                             {opt.values.join(", ")}
                           </Text>
                         </div>
@@ -390,7 +408,7 @@ const ProductSearchResultInner: React.FC = () => {
                         )
                       }
                     >
-                      <SquareTwoStackMini className="w-3.5 h-3.5" />
+                      <SquareTwoStackMini className="w-4 h-4" />
                       Open full details
                     </Button>
                     <Button
@@ -402,7 +420,7 @@ const ProductSearchResultInner: React.FC = () => {
                         )
                       }
                     >
-                      <ChatBubble className="w-3.5 h-3.5" />
+                      <ChatBubble className="w-4 h-4" />
                       Ask AI
                     </Button>
                   </div>

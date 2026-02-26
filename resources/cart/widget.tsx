@@ -4,13 +4,14 @@ import {
   useWidget,
   type WidgetMetadata,
 } from "mcp-use/react";
-import React, { useCallback, useMemo } from "react";
+import React from "react";
 import { Link } from "react-router";
 import "../styles.css";
 import { cartWidgetSchema } from "./types";
-import type { CartWidgetProps, CartWidgetItem } from "./types";
+import type { CartWidgetProps } from "./types";
 import { CartItemFull } from "./components/CartItemFull";
 import { CartTotals } from "./components/CartTotals";
+import { CartProvider, useCart } from "../shared/cart";
 
 import {
   Button,
@@ -41,10 +42,6 @@ export const widgetMetadata: WidgetMetadata = {
   },
 };
 
-type CartWidgetState = {
-  items: CartWidgetItem[];
-};
-
 function ShoppingBagIcon({ size = 20 }: { size?: number }) {
   return (
     <svg
@@ -71,56 +68,22 @@ function ShoppingBagIcon({ size = 20 }: { size?: number }) {
 
 const CartWidgetInner: React.FC = () => {
   const {
-    props,
     isPending,
     displayMode,
     requestDisplayMode,
     sendFollowUpMessage,
-    state,
-    setState,
-  } = useWidget<CartWidgetProps, CartWidgetState>();
+  } = useWidget<CartWidgetProps>();
 
-  // Use widget state for live cart edits; fall back to props for initial load
-  const items = state?.items ?? props?.items ?? [];
-  const currencyCode = props?.currencyCode ?? items[0]?.currencyCode ?? "usd";
-
-  const totalQuantity = useMemo(
-    () => items.reduce((acc: number, i: CartWidgetItem) => acc + i.quantity, 0),
-    [items]
-  );
-
-  const syncState = useCallback(
-    (next: CartWidgetItem[]) => {
-      setState({ items: next });
-    },
-    [setState]
-  );
-
-  const handleRemove = useCallback(
-    (id: string) => {
-      syncState(items.filter((i: CartWidgetItem) => i.id !== id));
-    },
-    [items, syncState]
-  );
-
-  const handleUpdateQuantity = useCallback(
-    (id: string, quantity: number) => {
-      if (quantity <= 0) {
-        handleRemove(id);
-        return;
-      }
-      syncState(
-        items.map((i: CartWidgetItem) =>
-          i.id === id ? { ...i, quantity } : i
-        )
-      );
-    },
-    [items, syncState, handleRemove]
-  );
-
-  const handleClearCart = useCallback(() => {
-    syncState([]);
-  }, [syncState]);
+  // Read cart state from the shared CartProvider (backed by localStorage)
+  const {
+    items,
+    totalItems,
+    subtotal,
+    currencyCode,
+    removeItem,
+    updateQuantity,
+    clearCart,
+  } = useCart();
 
   if (isPending) {
     return (
@@ -166,8 +129,8 @@ const CartWidgetInner: React.FC = () => {
           Shopping Cart
         </Heading>
         <Text className="text-neutral-500 text-sm">
-          {totalQuantity > 0
-            ? `You have ${totalQuantity} item${totalQuantity !== 1 ? "s" : ""} in your cart`
+          {totalItems > 0
+            ? `You have ${totalItems} item${totalItems !== 1 ? "s" : ""} in your cart`
             : "Your cart is empty"}
         </Text>
       </div>
@@ -200,12 +163,12 @@ const CartWidgetInner: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
             {/* Items list */}
             <div className="flex flex-col gap-2">
-              {items.map((item: CartWidgetItem) => (
+              {items.map((item) => (
                 <CartItemFull
                   key={item.id}
                   item={item}
-                  onRemove={handleRemove}
-                  onUpdateQuantity={handleUpdateQuantity}
+                  onRemove={removeItem}
+                  onUpdateQuantity={updateQuantity}
                 />
               ))}
             </div>
@@ -218,7 +181,7 @@ const CartWidgetInner: React.FC = () => {
                 variant="secondary"
                 size="small"
                 className="w-full"
-                onClick={handleClearCart}
+                onClick={clearCart}
               >
                 Empty Cart
               </Button>
@@ -246,7 +209,9 @@ const CartWidget: React.FC = () => {
   return (
     <McpUseProvider>
       <AppsSDKUIProvider linkComponent={Link}>
-        <CartWidgetInner />
+        <CartProvider>
+          <CartWidgetInner />
+        </CartProvider>
       </AppsSDKUIProvider>
     </McpUseProvider>
   );
