@@ -27,6 +27,27 @@ async function medusaFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/** Direct POST helper for the Medusa v2 Store API */
+async function medusaPost<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+): Promise<T> {
+  const url = new URL(path, MEDUSA_URL);
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      "x-publishable-api-key": PUBLISHABLE_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Medusa API ${res.status}: ${errBody}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 /** Cached default region for pricing context */
 let defaultRegionId: string | undefined;
 let defaultCurrencyCode = "usd";
@@ -379,6 +400,91 @@ server.tool(
       props: { items, currencyCode: currency },
       output: text(outputText),
     });
+  },
+);
+
+/**
+ * TOOL: Place order
+ * Creates a Medusa cart, adds line items, and completes it to create a real order.
+ */
+server.tool(
+  {
+    name: "place-order",
+    description:
+      "Place an order by creating a Medusa cart, adding line items, and completing it. Called when the user clicks 'Place Order' in the cart.",
+    schema: z.object({
+      items: z
+        .array(
+          z.object({
+            variantId: z.string().nullable().describe("Medusa variant ID"),
+            quantity: z.number().describe("Quantity"),
+            title: z.string().describe("Product title (for display)"),
+          }),
+        )
+        .describe("Cart items to order"),
+    }),
+  },
+  async ({ items }) => {
+    const DEMO_EMAIL = "lashaloi1409@gmail.com";
+
+    try {
+      // 1. Filter to items with valid variant IDs
+      const validItems = items.filter(
+        (i): i is typeof i & { variantId: string } => i.variantId != null,
+      );
+      if (validItems.length === 0) {
+        return error(
+          "No items with valid variant IDs. Cannot create an order without product variants.",
+        );
+      }
+
+      // 2. Ensure region
+      await ensureRegion();
+      if (!defaultRegionId) {
+        return error(
+          "Could not determine store region. Check Medusa configuration.",
+        );
+      }
+
+      // 3. Create cart
+      const { cart } = await medusaPost<{ cart: { id: string } }>(
+        "/store/carts",
+        { region_id: defaultRegionId, email: DEMO_EMAIL },
+      );
+
+      // 4. Add line items sequentially
+      for (const item of validItems) {
+        await medusaPost(`/store/carts/${cart.id}/line-items`, {
+          variant_id: item.variantId,
+          quantity: item.quantity,
+        });
+      }
+
+      // 5. Complete cart → create order
+      const result = await medusaPost<{
+        type: string;
+        order?: { id: string; display_id?: number };
+        error?: string;
+      }>(`/store/carts/${cart.id}/complete`, {});
+
+      if (result.type === "order" && result.order) {
+        const orderId = result.order.display_id
+          ? `#${result.order.display_id}`
+          : result.order.id;
+        return text(
+          `Order placed successfully! Order ${orderId}. A confirmation will be sent to ${DEMO_EMAIL}.`,
+        );
+      }
+
+      return error(
+        `Cart was created but could not be completed. ${result.error ?? "The store may require payment setup."}`,
+      );
+    } catch (err) {
+      console.error("Failed to place order:", err);
+      return error(
+        `Failed to place order: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
   },
 );
 

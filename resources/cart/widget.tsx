@@ -1,6 +1,7 @@
 import { AppsSDKUIProvider } from "@openai/apps-sdk-ui/components/AppsSDKUIProvider";
 import {
   McpUseProvider,
+  useCallTool,
   useWidget,
   type WidgetMetadata,
 } from "mcp-use/react";
@@ -75,6 +76,11 @@ const CartWidgetInner: React.FC = () => {
     requestDisplayMode,
     sendFollowUpMessage,
   } = useWidget<CartWidgetProps>();
+
+  const {
+    callTool: placeOrder,
+    isPending: isPlacingOrder,
+  } = useCallTool("place-order");
 
   // Read cart state from the shared CartProvider (backed by localStorage)
   const {
@@ -196,6 +202,26 @@ const CartWidgetInner: React.FC = () => {
             {/* Summary sidebar */}
             <div className="flex flex-col gap-3">
               <CartTotals items={items} currencyCode={currencyCode} />
+
+              <Button
+                variant="primary"
+                size="small"
+                className="w-full"
+                disabled={isPlacingOrder || items.length === 0}
+                onClick={() => {
+                  placeOrder({
+                    items: items.map((i) => ({
+                      variantId: i.variantId,
+                      quantity: i.quantity,
+                      title: i.title,
+                    })),
+                  }).then(() => {
+                    clearCart();
+                  });
+                }}
+              >
+                {isPlacingOrder ? "Placing Order..." : "Place Order"}
+              </Button>
 
               <Button
                 variant="secondary"

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Heading, Text, Button } from "@medusajs/ui";
 import { XMarkMini } from "@medusajs/icons";
+import { useCallTool } from "mcp-use/react";
 import { useCart } from "./CartContext";
 import { CartItemPreview } from "./CartItemPreview";
 
@@ -23,6 +24,11 @@ export const CartDrawer: React.FC = () => {
     isCartOpen,
     closeCart,
   } = useCart();
+
+  const {
+    callTool: placeOrder,
+    isPending: isPlacingOrder,
+  } = useCallTool("place-order");
 
   const prevTotalRef = useRef(totalItems);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,6 +138,26 @@ export const CartDrawer: React.FC = () => {
               <Text className="text-neutral-400 text-[0.55rem]">
                 Taxes and shipping calculated at checkout
               </Text>
+              <Button
+                variant="primary"
+                size="small"
+                className="w-full"
+                disabled={isPlacingOrder || items.length === 0}
+                onClick={() => {
+                  placeOrder({
+                    items: items.map((i) => ({
+                      variantId: i.variantId,
+                      quantity: i.quantity,
+                      title: i.title,
+                    })),
+                  }).then(() => {
+                    clearCart();
+                    closeCart();
+                  });
+                }}
+              >
+                {isPlacingOrder ? "Placing Order..." : "Place Order"}
+              </Button>
               <Button
                 variant="secondary"
                 size="small"
