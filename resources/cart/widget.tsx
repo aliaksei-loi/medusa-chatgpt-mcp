@@ -15,19 +15,9 @@ import { CartTotals } from "./components/CartTotals";
 import { CartProvider, useCart, writeCart } from "../shared/cart";
 import type { CartItem } from "../shared/cart";
 
-import {
-  Button,
-  Container,
-  Heading,
-  IconButton,
-  Text,
-} from "@medusajs/ui";
+import { Button, Container, Heading, IconButton, Text } from "@medusajs/ui";
 
-import {
-  ArrowsPointingOutMini,
-  XMarkMini,
-  ChatBubble,
-} from "@medusajs/icons";
+import { ArrowsPointingOutMini, XMarkMini, ChatBubble } from "@medusajs/icons";
 
 export const widgetMetadata: WidgetMetadata = {
   description:
@@ -77,10 +67,8 @@ const CartWidgetInner: React.FC = () => {
     sendFollowUpMessage,
   } = useWidget<CartWidgetProps>();
 
-  const {
-    callTool: placeOrder,
-    isPending: isPlacingOrder,
-  } = useCallTool("place-order");
+  const { callTool: placeOrder, isPending: isPlacingOrder } =
+    useCallTool("place-order");
 
   // Read cart state from the shared CartProvider (backed by localStorage)
   const {
@@ -97,18 +85,27 @@ const CartWidgetInner: React.FC = () => {
   // truth and sync into localStorage so other widgets pick them up.
   const hasSynced = useRef(false);
   useEffect(() => {
-    if (!isPending && props?.items && props.items.length > 0 && !hasSynced.current) {
+    if (
+      !isPending &&
+      props?.items &&
+      props.items.length > 0 &&
+      !hasSynced.current
+    ) {
       hasSynced.current = true;
       writeCart(props.items as CartItem[]);
     }
   }, [isPending, props?.items]);
 
   // Use props items when available (server-authoritative), fall back to localStorage
-  const items = (!isPending && props?.items && props.items.length > 0)
-    ? (props.items as CartItem[])
-    : localItems;
+  const items =
+    !isPending && props?.items && props.items.length > 0
+      ? (props.items as CartItem[])
+      : localItems;
   const totalItems = items.reduce((acc, i) => acc + i.quantity, 0);
-  const subtotal = items.reduce((acc, i) => acc + (i.price ?? 0) * i.quantity, 0);
+  const subtotal = items.reduce(
+    (acc, i) => acc + (i.price ?? 0) * i.quantity,
+    0,
+  );
   const currencyCode = items[0]?.currencyCode ?? localCurrencyCode;
 
   if (isPending) {
@@ -169,8 +166,8 @@ const CartWidgetInner: React.FC = () => {
             Cart
           </Heading>
           <Text className="text-neutral-500 text-sm mb-6 max-w-xs">
-            You don&apos;t have anything in your cart. Let&apos;s change that
-            — ask me to search for products.
+            You don&apos;t have anything in your cart. Let&apos;s change that —
+            ask me to search for products.
           </Text>
           <Button
             variant="secondary"
@@ -211,13 +208,13 @@ const CartWidgetInner: React.FC = () => {
                 onClick={() => {
                   placeOrder({
                     items: items.map((i) => ({
-                      variantId: i.variantId,
+                      productId: i.productId,
                       quantity: i.quantity,
                       title: i.title,
                     })),
-                  }).then(() => {
-                    clearCart();
                   });
+
+                  clearCart();
                 }}
               >
                 {isPlacingOrder ? "Placing Order..." : "Place Order"}

@@ -482,7 +482,7 @@ server.tool(
       // 2. Fetch product to get the real variant ID
       const { products } = await medusaFetch<{ products: any[] }>(
         "/store/products",
-        { id: productId, region_id: defaultRegionId },
+        { id: productId!, region_id: defaultRegionId },
       );
       const product = products?.[0];
       if (!product) {
@@ -574,9 +574,7 @@ server.tool(
       // Cancel and archive all orders
       const toProcess = orders.filter((o) => o.status !== "archived");
       if (toProcess.length === 0) {
-        return text(
-          `All ${orders.length} order(s) are already archived.`,
-        );
+        return text(`All ${orders.length} order(s) are already archived.`);
       }
 
       let archived = 0;
@@ -592,9 +590,7 @@ server.tool(
         }
       }
 
-      return text(
-        `Archived ${archived} of ${toProcess.length} order(s).`,
-      );
+      return text(`Archived ${archived} of ${toProcess.length} order(s).`);
     } catch (err) {
       console.error("Failed to clear orders:", err);
       return error(
