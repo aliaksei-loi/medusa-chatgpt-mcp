@@ -14,6 +14,8 @@ import { CarouselSkeleton } from "./components/CarouselSkeleton";
 import { Accordion } from "./components/Accordion";
 import type { Product, ProductSearchResultProps } from "./types";
 import { propSchema } from "./types";
+import type { ProductDetail } from "../product-detail/types";
+import { formatPrice } from "../shared/formatPrice";
 
 import { CartProvider, useCart, CartButton, CartDrawer } from "../shared/cart";
 
@@ -53,15 +55,6 @@ type WidgetState = {
   favorites: string[];
 };
 
-function formatPrice(amount: number | null, currencyCode: string): string {
-  if (amount === null) return "N/A";
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
-}
-
 const ProductSearchResultInner: React.FC = () => {
   const {
     props,
@@ -84,24 +77,7 @@ const ProductSearchResultInner: React.FC = () => {
   const { callTool: callAddToCart } = useCallTool("add-to-cart");
 
   const selectedProduct = productDetailsData?.structuredContent as
-    | {
-        id: string;
-        title: string;
-        handle: string | null;
-        description: string | null;
-        thumbnail: string | null;
-        images: string[];
-        options: Array<{ title: string; values: string[] }>;
-        variants: Array<{
-          id: string;
-          title: string;
-          sku: string | null;
-          inventory_quantity: number;
-          prices: Array<{ amount: number; currency_code: string }>;
-        }>;
-        collection: string | null;
-        tags: string[];
-      }
+    | ProductDetail
     | undefined;
 
   const favorites = state?.favorites ?? [];
@@ -209,6 +185,7 @@ const ProductSearchResultInner: React.FC = () => {
             size="small"
             onClick={() => requestDisplayMode("inline")}
             title="Exit"
+            aria-label="Exit fullscreen"
           >
             <XMarkMini />
           </IconButton>
@@ -218,6 +195,7 @@ const ProductSearchResultInner: React.FC = () => {
             size="small"
             onClick={() => requestDisplayMode("fullscreen")}
             title="Fullscreen"
+            aria-label="Enter fullscreen"
           >
             <ArrowsPointingOutMini />
           </IconButton>
@@ -325,17 +303,17 @@ const ProductSearchResultInner: React.FC = () => {
                   )}
 
                   {/* Variants & Pricing */}
-                  {selectedProduct.variants?.length > 0 && (
+                  {selectedProduct.variants.length > 0 && (
                     <div className="mb-3">
                       <Text
                         size="small"
                         weight="plus"
                         className="text-default mb-1"
                       >
-                        Variants ({selectedProduct.variants?.length ?? 0})
+                        Variants ({selectedProduct.variants.length})
                       </Text>
                       <div className="flex flex-wrap gap-1.5">
-                        {(selectedProduct.variants ?? []).map((v) => {
+                        {selectedProduct.variants.map((v) => {
                           const price = v.prices[0];
                           return (
                             <Badge
@@ -356,9 +334,9 @@ const ProductSearchResultInner: React.FC = () => {
                   )}
 
                   {/* Options */}
-                  {selectedProduct.options?.length > 0 && (
+                  {selectedProduct.options.length > 0 && (
                     <div className="mb-3">
-                      {(selectedProduct.options ?? []).map((opt) => (
+                      {selectedProduct.options.map((opt) => (
                         <div key={opt.title} className="mb-1">
                           <Text
                             size="small"
@@ -376,9 +354,9 @@ const ProductSearchResultInner: React.FC = () => {
                   )}
 
                   {/* Tags */}
-                  {selectedProduct.tags?.length > 0 && (
+                  {selectedProduct.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
-                      {(selectedProduct.tags ?? []).map((tag) => (
+                      {selectedProduct.tags.map((tag) => (
                         <Badge
                           key={tag}
                           color="blue"

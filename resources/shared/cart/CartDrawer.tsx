@@ -4,13 +4,7 @@ import { XMarkMini } from "@medusajs/icons";
 import { useCallTool } from "mcp-use/react";
 import { useCart } from "./CartContext";
 import { CartItemPreview } from "./CartItemPreview";
-
-function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
-}
+import { formatPrice } from "../formatPrice";
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -146,14 +140,13 @@ export const CartDrawer: React.FC = () => {
                 onClick={() => {
                   placeOrder({
                     items: items.map((i) => ({
-                      variantId: i.variantId,
+                      productId: i.productId,
                       quantity: i.quantity,
                       title: i.title,
                     })),
-                  }).then(() => {
-                    clearCart();
-                    closeCart();
                   });
+                  clearCart();
+                  closeCart();
                 }}
               >
                 {isPlacingOrder ? "Placing Order..." : "Place Order"}

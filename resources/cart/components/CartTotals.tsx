@@ -1,17 +1,11 @@
 import React from "react";
 import { Container, Text } from "@medusajs/ui";
 import type { CartWidgetItem } from "../types";
+import { formatPrice } from "../../shared/formatPrice";
 
 interface CartTotalsProps {
   items: CartWidgetItem[];
   currencyCode: string;
-}
-
-function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
 }
 
 export const CartTotals: React.FC<CartTotalsProps> = ({

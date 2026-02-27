@@ -7,6 +7,7 @@ export function useCarouselAnimation(
   useEffect(() => {
     let lastPointerX = 0;
     let lastPointerY = 0;
+    let rafId: number | null = null;
 
     const updateItems = () => {
       const container = carouselContainerRef.current;
@@ -48,7 +49,12 @@ export function useCarouselAnimation(
     const handlePointerMove = (event: { clientX: number; clientY: number }) => {
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
-      updateItems();
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          updateItems();
+          rafId = null;
+        });
+      }
     };
 
     const handleScroll = () => {
@@ -69,9 +75,11 @@ export function useCarouselAnimation(
     return () => {
       document.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("scroll", handleScroll, true);
-      const container = scrollContainerRef.current;
-      if (container) {
-        container.removeEventListener("scroll", handleScroll);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", handleScroll);
+      }
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
       }
     };
   }, [carouselContainerRef, scrollContainerRef]);

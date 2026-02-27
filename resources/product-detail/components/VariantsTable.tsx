@@ -1,35 +1,16 @@
 import React from "react";
 import { Table, Text } from "@medusajs/ui";
 import type { ProductDetail } from "../types";
+import { formatPrice } from "../../shared/formatPrice";
+import { getStockColor } from "../../shared/getStockColor";
 
 interface VariantsTableProps {
   product: ProductDetail;
 }
 
-function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
-}
-
-function getStockColor(quantity: number): string {
-  if (quantity > 50) return "text-green-500";
-  if (quantity > 0) return "text-orange-500";
-  return "text-red-500";
-}
-
 export const VariantsTable: React.FC<VariantsTableProps> = ({ product }) => {
   if (product.variants.length === 0) return null;
 
-  // Determine which option columns to show (exclude "Default option")
-  const optionColumns = (product.options ?? []).filter(
-    (opt) => opt.title !== "Default option"
-  );
-
-  // Build a map from variant to option values
-  // Since we don't have per-variant option values in our schema,
-  // we show SKU, title, price, and inventory
   const hasMultipleVariants = product.variants.length > 1;
 
   return (

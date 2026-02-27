@@ -2,19 +2,12 @@ import React from "react";
 import { Image } from "mcp-use/react";
 import { XMarkMini } from "@medusajs/icons";
 import type { CartItem } from "./types";
+import { formatPrice } from "../formatPrice";
 
 interface CartItemPreviewProps {
   item: CartItem;
   onRemove: (id: string) => void;
   onUpdateQuantity: (id: string, quantity: number) => void;
-}
-
-function formatPrice(amount: number | null, currencyCode: string): string {
-  if (amount === null) return "N/A";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
 }
 
 export const CartItemPreview: React.FC<CartItemPreviewProps> = ({

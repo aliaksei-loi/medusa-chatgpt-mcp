@@ -5,6 +5,42 @@ const MEDUSA_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000";
 const PUBLISHABLE_KEY =
   process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey";
 const ADMIN_KEY = process.env.MEDUSA_ADMIN_KEY || "";
+const DEMO_EMAIL = process.env.DEMO_ORDER_EMAIL ?? "demo@example.com";
+
+/* ── Medusa API response types ─────────────────────────────────── */
+
+interface MedusaPrice {
+  amount: number;
+  currency_code: string;
+}
+
+interface MedusaCalculatedPrice {
+  calculated_amount?: number | null;
+  original_amount?: number | null;
+  currency_code?: string | null;
+}
+
+interface MedusaVariant {
+  id: string;
+  title: string;
+  sku?: string | null;
+  inventory_quantity?: number;
+  calculated_price?: MedusaCalculatedPrice | number | null;
+  prices?: MedusaPrice[];
+}
+
+interface MedusaProduct {
+  id: string;
+  title: string;
+  handle?: string | null;
+  thumbnail?: string | null;
+  description?: string | null;
+  images?: Array<{ url: string }>;
+  collection?: { title: string } | null;
+  variants?: MedusaVariant[];
+  options?: Array<{ title: string; values: Array<{ value: string }> }>;
+  tags?: Array<{ value: string }>;
+}
 
 /** Direct fetch helper for the Medusa v2 Admin API */
 async function medusaAdminFetch<T>(
@@ -94,7 +130,7 @@ let defaultCurrencyCode = "usd";
 async function ensureRegion() {
   if (defaultRegionId) return;
   try {
-    const data = await medusaFetch<{ regions: any[] }>("/store/regions");
+    const data = await medusaFetch<{ regions: Array<{ id: string; currency_code?: string }> }>("/store/regions");
     if (data.regions.length > 0) {
       defaultRegionId = data.regions[0].id;
       defaultCurrencyCode = data.regions[0].currency_code ?? "usd";
@@ -121,7 +157,7 @@ const server = new MCPServer({
 });
 
 /** Helper: extract cheapest price from a product's variants */
-function getLowestPrice(product: any): {
+function getLowestPrice(product: MedusaProduct): {
   amount: number | null;
   currency_code: string;
 } {
@@ -136,13 +172,15 @@ function getLowestPrice(product: any): {
         typeof cp === "number"
           ? cp
           : (cp.calculated_amount ?? cp.original_amount ?? null);
-      if (amount != null && (lowest === null || amount < lowest)) {
-        lowest = amount;
-        currency =
-          (typeof cp === "object" ? cp.currency_code : null) ??
-          defaultCurrencyCode;
+      if (amount != null) {
+        if (lowest === null || amount < lowest) {
+          lowest = amount;
+          currency =
+            (typeof cp === "object" ? cp.currency_code : null) ??
+            defaultCurrencyCode;
+        }
+        continue;
       }
-      continue;
     }
     // Fallback to prices array (v1 style)
     for (const price of variant.prices ?? []) {
@@ -157,7 +195,7 @@ function getLowestPrice(product: any): {
 }
 
 /** Map a Medusa product to the simplified shape used by the widget */
-function toWidgetProduct(product: any) {
+function toWidgetProduct(product: MedusaProduct) {
   const { amount, currency_code } = getLowestPrice(product);
   return {
     id: product.id,
@@ -170,7 +208,7 @@ function toWidgetProduct(product: any) {
     collection: product.collection?.title ?? null,
     variants_count: product.variants?.length ?? 0,
     inventory_quantity: (product.variants ?? []).reduce(
-      (acc: number, v: any) => acc + ((v.inventory_quantity as number) ?? 0),
+      (acc: number, v: MedusaVariant) => acc + (v.inventory_quantity ?? 0),
       0,
     ),
     default_variant_id: product.variants?.[0]?.id ?? null,
@@ -205,7 +243,7 @@ server.tool(
   async ({ query, limit }) => {
     try {
       await ensureRegion();
-      const { products } = await medusaFetch<{ products: any[] }>(
+      const { products } = await medusaFetch<{ products: MedusaProduct[] }>(
         "/store/products",
         {
           q: query || undefined,
@@ -255,7 +293,7 @@ server.tool(
   async ({ product_id }) => {
     try {
       await ensureRegion();
-      const { products } = await medusaFetch<{ products: any[] }>(
+      const { products } = await medusaFetch<{ products: MedusaProduct[] }>(
         "/store/products",
         {
           id: product_id,
@@ -270,17 +308,17 @@ server.tool(
       }
 
       const productData = {
-        id: product.id!,
-        title: product.title!,
+        id: product.id,
+        title: product.title,
         handle: product.handle ?? null,
         description: product.description ?? null,
         thumbnail: product.thumbnail ?? product.images?.[0]?.url ?? null,
-        images: (product.images ?? []).map((img: any) => img.url as string),
-        options: (product.options ?? []).map((opt: any) => ({
-          title: opt.title as string,
-          values: (opt.values ?? []).map((v: any) => v.value as string),
+        images: (product.images ?? []).map((img) => img.url),
+        options: (product.options ?? []).map((opt) => ({
+          title: opt.title,
+          values: (opt.values ?? []).map((v) => v.value),
         })),
-        variants: (product.variants ?? []).map((v: any) => {
+        variants: (product.variants ?? []).map((v) => {
           // Build prices array: prefer calculated_price (v2), fall back to prices array (v1)
           const cp = v.calculated_price;
           let prices: Array<{ amount: number; currency_code: string }> = [];
@@ -301,21 +339,21 @@ server.tool(
             }
           }
           if (prices.length === 0) {
-            prices = (v.prices ?? []).map((p: any) => ({
-              amount: p.amount as number,
-              currency_code: p.currency_code as string,
+            prices = (v.prices ?? []).map((p) => ({
+              amount: p.amount,
+              currency_code: p.currency_code,
             }));
           }
           return {
-            id: v.id as string,
-            title: v.title as string,
-            sku: (v.sku as string) ?? null,
-            inventory_quantity: (v.inventory_quantity as number) ?? 0,
+            id: v.id,
+            title: v.title,
+            sku: v.sku ?? null,
+            inventory_quantity: v.inventory_quantity ?? 0,
             prices,
           };
         }),
-        collection: (product.collection?.title as string) ?? null,
-        tags: (product.tags ?? []).map((t: any) => t.value as string),
+        collection: product.collection?.title ?? null,
+        tags: (product.tags ?? []).map((t) => t.value),
       };
 
       return widget({
@@ -467,9 +505,6 @@ server.tool(
     }),
   },
   async ({ items }) => {
-    const [{ productId }] = items;
-    const DEMO_EMAIL = "lashaloi1409@gmail.com";
-
     try {
       // 1. Ensure region
       await ensureRegion();
@@ -479,46 +514,52 @@ server.tool(
         );
       }
 
-      // 2. Fetch product to get the real variant ID
-      const { products } = await medusaFetch<{ products: any[] }>(
-        "/store/products",
-        { id: productId!, region_id: defaultRegionId },
-      );
-      const product = products?.[0];
-      if (!product) {
-        return error(`Product ${productId} not found.`);
-      }
-      const variant = product.variants?.[0];
-      if (!variant) {
-        return error(`Product "${product.title}" has no variants.`);
-      }
-
-      // 3. Create cart
+      // 2. Create cart
       const { cart } = await medusaPost<{ cart: { id: string } }>(
         "/store/carts",
         { region_id: defaultRegionId, email: DEMO_EMAIL },
       );
 
-      // 4. Add line item using the real variant ID
-      await medusaPost(`/store/carts/${cart.id}/line-items`, {
-        variant_id: variant.id,
-        quantity: 1,
-      });
+      // 3. Add all line items — fetch each product to get real variant IDs
+      for (const cartItem of items) {
+        if (!cartItem.productId) {
+          console.warn(`Skipping item "${cartItem.title}" — no productId`);
+          continue;
+        }
+        const { products } = await medusaFetch<{ products: MedusaProduct[] }>(
+          "/store/products",
+          { id: cartItem.productId, region_id: defaultRegionId },
+        );
+        const product = products?.[0];
+        if (!product) {
+          console.warn(`Product ${cartItem.productId} not found, skipping`);
+          continue;
+        }
+        const variant = product.variants?.[0];
+        if (!variant) {
+          console.warn(`Product "${product.title}" has no variants, skipping`);
+          continue;
+        }
+        await medusaPost(`/store/carts/${cart.id}/line-items`, {
+          variant_id: variant.id,
+          quantity: cartItem.quantity,
+        });
+      }
 
-      // 5. Initialize payment collection
+      // 4. Initialize payment collection
       const { payment_collection } = await medusaPost<{
         payment_collection: { id: string };
       }>(`/store/payment-collections`, {
         cart_id: cart.id,
       });
 
-      // 6. Create payment session with system default provider
+      // 5. Create payment session with system default provider
       await medusaPost(
         `/store/payment-collections/${payment_collection.id}/payment-sessions`,
         { provider_id: "pp_system_default" },
       );
 
-      // 7. Complete cart → create order
+      // 6. Complete cart → create order
       const result = await medusaPost<{
         type: string;
         order?: { id: string; display_id?: number };

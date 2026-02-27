@@ -1,17 +1,10 @@
 import React from "react";
 import { Heading, Text, Badge } from "@medusajs/ui";
-import { CheckCircleSolid, ExclamationCircleSolid } from "@medusajs/icons";
 import type { ProductDetail } from "../types";
+import { formatPrice } from "../../shared/formatPrice";
 
 interface ProductInfoProps {
   product: ProductDetail;
-}
-
-function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
 }
 
 function getCheapestPrice(product: ProductDetail): {
@@ -37,10 +30,6 @@ function getCheapestPrice(product: ProductDetail): {
 
 export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
   const cheapestPrice = getCheapestPrice(product);
-  const inventoryQuantity = product.variants.reduce(
-    (acc, v) => acc + v.inventory_quantity,
-    0,
-  );
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -71,27 +60,6 @@ export const ProductInfo: React.FC<ProductInfoProps> = ({ product }) => {
           <Text className="text-neutral-500 text-[0.6rem]">Excl. VAT</Text>
         </div>
       )}
-
-      {/* Stock facts
-      <div className="flex flex-col gap-1.5">
-        {inventoryQuantity > 10 ? (
-          <span className="flex items-center gap-2 text-neutral-600 text-sm">
-            <CheckCircleSolid className="text-green-500 w-4 h-4 shrink-0" />
-            Can be shipped immediately ({inventoryQuantity} in stock)
-          </span>
-        ) : inventoryQuantity > 0 ? (
-          <span className="flex items-center gap-2 text-neutral-600 text-sm">
-            <ExclamationCircleSolid className="text-orange-500 w-4 h-4 shrink-0" />
-            Limited quantity available ({inventoryQuantity} in stock)
-          </span>
-        ) : (
-          <span className="flex items-center gap-2 text-neutral-600 text-sm">
-            <ExclamationCircleSolid className="text-red-500 w-4 h-4 shrink-0" />
-            Out of stock
-          </span>
-        )}
-      </div>
-      */}
 
       {/* Options */}
       {product.options.length > 0 && (

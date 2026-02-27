@@ -233,6 +233,6 @@
 }
 
 *, ::before, ::after {
-  borderColor: var(--border-base);
+  border-color: var(--border-base);
 }
 

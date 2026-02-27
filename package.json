@@ -30,16 +30,15 @@
   },
   "dependencies": {
     "@medusajs/icons": "^2.13.1",
-    "@medusajs/medusa-js": "^6.1.10",
     "@medusajs/ui": "^4.1.1",
     "@medusajs/ui-preset": "^2.13.1",
     "@openai/apps-sdk-ui": "^0.2.1",
-    "mcp-use": "latest",
+    "mcp-use": "^1.20.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router": "^7.13.0",
     "tailwindcss": "^4.2.0",
-    "zod": "4.3.5"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.0",

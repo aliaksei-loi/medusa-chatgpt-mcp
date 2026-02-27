@@ -3,19 +3,12 @@ import { Image } from "mcp-use/react";
 import { Container, Text } from "@medusajs/ui";
 import { XMarkMini } from "@medusajs/icons";
 import type { CartWidgetItem } from "../types";
+import { formatPrice } from "../../shared/formatPrice";
 
 interface CartItemFullProps {
   item: CartWidgetItem;
   onRemove: (id: string) => void;
   onUpdateQuantity: (id: string, quantity: number) => void;
-}
-
-function formatPrice(amount: number | null, currencyCode: string): string {
-  if (amount === null) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount / 100);
 }
 
 export const CartItemFull: React.FC<CartItemFullProps> = ({

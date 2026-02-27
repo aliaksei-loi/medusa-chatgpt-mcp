@@ -35,13 +35,7 @@ export const Carousel: React.FC<CarouselProps> = ({
             <CarouselItem
               key={product.id ?? index}
               product={product}
-              isFavorite={favorites.includes(product.id)}
               onClick={() => onSelectProduct(product.id)}
-              onToggleFavorite={
-                onToggleFavorite
-                  ? () => onToggleFavorite(product.id)
-                  : undefined
-              }
               onAddToCart={onAddToCart}
             />
           ))}

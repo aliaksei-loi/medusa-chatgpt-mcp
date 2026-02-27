@@ -20,7 +20,7 @@ export const Accordion: React.FC<AccordionProps> = ({ items }) => {
       <div className="rounded-lg border border-default overflow-hidden">
         {items.map((item, index) => (
           <AccordionItem
-            key={index}
+            key={item.question}
             question={item.question}
             answer={item.answer}
             isOpen={openAccordionIndex === index}
