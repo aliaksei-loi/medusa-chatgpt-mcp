@@ -1,10 +1,49 @@
 import { MCPServer, error, object, text, widget } from "mcp-use/server";
 import { z } from "zod";
 
-const MEDUSA_URL =
-  process.env.MEDUSA_BACKEND_URL || "http://localhost:9000";
+const MEDUSA_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000";
 const PUBLISHABLE_KEY =
   process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey";
+const ADMIN_KEY = process.env.MEDUSA_ADMIN_KEY || "";
+
+/** Direct fetch helper for the Medusa v2 Admin API */
+async function medusaAdminFetch<T>(
+  path: string,
+  params: Record<string, string | number | undefined> = {},
+): Promise<T> {
+  const url = new URL(path, MEDUSA_URL);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Basic ${ADMIN_KEY}` },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Medusa Admin API ${res.status}: ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function medusaAdminPost<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+): Promise<T> {
+  const url = new URL(path, MEDUSA_URL);
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${ADMIN_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Medusa Admin API ${res.status}: ${errBody}`);
+  }
+  return res.json() as Promise<T>;
+}
 
 /** Direct fetch helper for the Medusa v2 Store API */
 async function medusaFetch<T>(
@@ -96,7 +135,7 @@ function getLowestPrice(product: any): {
       const amount =
         typeof cp === "number"
           ? cp
-          : cp.calculated_amount ?? cp.original_amount ?? null;
+          : (cp.calculated_amount ?? cp.original_amount ?? null);
       if (amount != null && (lowest === null || amount < lowest)) {
         lowest = amount;
         currency =
@@ -172,8 +211,7 @@ server.tool(
           q: query || undefined,
           limit: limit ?? 20,
           region_id: defaultRegionId,
-          fields:
-            "*variants.calculated_price,+variants.inventory_quantity",
+          fields: "*variants.calculated_price,+variants.inventory_quantity",
         },
       );
 
@@ -250,7 +288,7 @@ server.tool(
             const amount =
               typeof cp === "number"
                 ? cp
-                : cp.calculated_amount ?? cp.original_amount ?? null;
+                : (cp.calculated_amount ?? cp.original_amount ?? null);
             if (amount != null) {
               prices = [
                 {
@@ -309,7 +347,10 @@ server.tool(
       productId: z.string().describe("Product ID"),
       variantId: z.string().nullable().describe("Variant ID"),
       title: z.string().describe("Product title"),
-      variantTitle: z.string().nullable().describe("Variant title (e.g. size/color)"),
+      variantTitle: z
+        .string()
+        .nullable()
+        .describe("Variant title (e.g. size/color)"),
       quantity: z.number().describe("Quantity to add"),
       price: z.number().nullable().describe("Price per unit in cents"),
       currencyCode: z.string().describe("Currency code (e.g. usd)"),
@@ -359,7 +400,9 @@ server.tool(
       currencyCode: z
         .string()
         .optional()
-        .describe("Cart currency code (defaults to first item's currency or usd)"),
+        .describe(
+          "Cart currency code (defaults to first item's currency or usd)",
+        ),
     }),
     annotations: { readOnlyHint: true },
     widget: {
@@ -369,8 +412,7 @@ server.tool(
     },
   },
   async ({ items, currencyCode }) => {
-    const currency =
-      currencyCode ?? items[0]?.currencyCode ?? "usd";
+    const currency = currencyCode ?? items[0]?.currencyCode ?? "usd";
     const totalQuantity = items.reduce((acc, i) => acc + i.quantity, 0);
 
     const fmt = (amount: number | null, code: string) =>
@@ -416,7 +458,7 @@ server.tool(
       items: z
         .array(
           z.object({
-            variantId: z.string().nullable().describe("Medusa variant ID"),
+            productId: z.string().nullable().describe("Medusa product ID"),
             quantity: z.number().describe("Quantity"),
             title: z.string().describe("Product title (for display)"),
           }),
@@ -425,25 +467,30 @@ server.tool(
     }),
   },
   async ({ items }) => {
+    const [{ productId }] = items;
     const DEMO_EMAIL = "lashaloi1409@gmail.com";
 
     try {
-      // 1. Filter to items with valid variant IDs
-      const validItems = items.filter(
-        (i): i is typeof i & { variantId: string } => i.variantId != null,
-      );
-      if (validItems.length === 0) {
-        return error(
-          "No items with valid variant IDs. Cannot create an order without product variants.",
-        );
-      }
-
-      // 2. Ensure region
+      // 1. Ensure region
       await ensureRegion();
       if (!defaultRegionId) {
         return error(
           "Could not determine store region. Check Medusa configuration.",
         );
+      }
+
+      // 2. Fetch product to get the real variant ID
+      const { products } = await medusaFetch<{ products: any[] }>(
+        "/store/products",
+        { id: productId, region_id: defaultRegionId },
+      );
+      const product = products?.[0];
+      if (!product) {
+        return error(`Product ${productId} not found.`);
+      }
+      const variant = product.variants?.[0];
+      if (!variant) {
+        return error(`Product "${product.title}" has no variants.`);
       }
 
       // 3. Create cart
@@ -452,15 +499,26 @@ server.tool(
         { region_id: defaultRegionId, email: DEMO_EMAIL },
       );
 
-      // 4. Add line items sequentially
-      for (const item of validItems) {
-        await medusaPost(`/store/carts/${cart.id}/line-items`, {
-          variant_id: item.variantId,
-          quantity: item.quantity,
-        });
-      }
+      // 4. Add line item using the real variant ID
+      await medusaPost(`/store/carts/${cart.id}/line-items`, {
+        variant_id: variant.id,
+        quantity: 1,
+      });
 
-      // 5. Complete cart → create order
+      // 5. Initialize payment collection
+      const { payment_collection } = await medusaPost<{
+        payment_collection: { id: string };
+      }>(`/store/payment-collections`, {
+        cart_id: cart.id,
+      });
+
+      // 6. Create payment session with system default provider
+      await medusaPost(
+        `/store/payment-collections/${payment_collection.id}/payment-sessions`,
+        { provider_id: "pp_system_default" },
+      );
+
+      // 7. Complete cart → create order
       const result = await medusaPost<{
         type: string;
         order?: { id: string; display_id?: number };
@@ -483,6 +541,64 @@ server.tool(
       console.error("Failed to place order:", err);
       return error(
         `Failed to place order: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  },
+);
+
+/**
+ * TOOL: Clear all orders (demo utility)
+ * Cancels all non-canceled orders via the Admin API.
+ */
+server.tool(
+  {
+    name: "clear-orders",
+    description:
+      "Cancel all orders in the store. Demo utility for resetting order state.",
+  },
+  async () => {
+    try {
+      if (!ADMIN_KEY) {
+        return error("MEDUSA_ADMIN_KEY is not configured.");
+      }
+
+      // Fetch all orders
+      const { orders } = await medusaAdminFetch<{
+        orders: { id: string; display_id?: number; status: string }[];
+      }>("/admin/orders", { limit: 100 });
+
+      if (orders.length === 0) {
+        return text("No orders found.");
+      }
+
+      // Cancel and archive all orders
+      const toProcess = orders.filter((o) => o.status !== "archived");
+      if (toProcess.length === 0) {
+        return text(
+          `All ${orders.length} order(s) are already archived.`,
+        );
+      }
+
+      let archived = 0;
+      for (const order of toProcess) {
+        try {
+          if (order.status !== "canceled") {
+            await medusaAdminPost(`/admin/orders/${order.id}/cancel`, {});
+          }
+          await medusaAdminPost(`/admin/orders/${order.id}/archive`, {});
+          archived++;
+        } catch (err) {
+          console.warn(`Failed to archive order ${order.id}:`, err);
+        }
+      }
+
+      return text(
+        `Archived ${archived} of ${toProcess.length} order(s).`,
+      );
+    } catch (err) {
+      console.error("Failed to clear orders:", err);
+      return error(
+        `Failed to clear orders: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     }
   },
