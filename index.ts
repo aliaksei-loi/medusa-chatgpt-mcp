@@ -4,7 +4,6 @@ import { z } from "zod";
 const MEDUSA_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000";
 const PUBLISHABLE_KEY =
   process.env.MEDUSA_PUBLISHABLE_KEY || "publishableApiKey";
-const ADMIN_KEY = process.env.MEDUSA_ADMIN_KEY || "";
 const DEMO_EMAIL = process.env.DEMO_ORDER_EMAIL ?? "demo@example.com";
 
 /* ── Medusa API response types ─────────────────────────────────── */
@@ -40,45 +39,6 @@ interface MedusaProduct {
   variants?: MedusaVariant[];
   options?: Array<{ title: string; values: Array<{ value: string }> }>;
   tags?: Array<{ value: string }>;
-}
-
-/** Direct fetch helper for the Medusa v2 Admin API */
-async function medusaAdminFetch<T>(
-  path: string,
-  params: Record<string, string | number | undefined> = {},
-): Promise<T> {
-  const url = new URL(path, MEDUSA_URL);
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) url.searchParams.set(key, String(value));
-  }
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Basic ${ADMIN_KEY}` },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Medusa Admin API ${res.status}: ${body}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-async function medusaAdminPost<T>(
-  path: string,
-  body: Record<string, unknown> = {},
-): Promise<T> {
-  const url = new URL(path, MEDUSA_URL);
-  const res = await fetch(url.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${ADMIN_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Medusa Admin API ${res.status}: ${errBody}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 /** Direct fetch helper for the Medusa v2 Store API */
@@ -582,60 +542,6 @@ server.tool(
       console.error("Failed to place order:", err);
       return error(
         `Failed to place order: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
-    }
-  },
-);
-
-/**
- * TOOL: Clear all orders (demo utility)
- * Cancels all non-canceled orders via the Admin API.
- */
-server.tool(
-  {
-    name: "clear-orders",
-    description:
-      "Cancel all orders in the store. Demo utility for resetting order state.",
-  },
-  async () => {
-    try {
-      if (!ADMIN_KEY) {
-        return error("MEDUSA_ADMIN_KEY is not configured.");
-      }
-
-      // Fetch all orders
-      const { orders } = await medusaAdminFetch<{
-        orders: { id: string; display_id?: number; status: string }[];
-      }>("/admin/orders", { limit: 100 });
-
-      if (orders.length === 0) {
-        return text("No orders found.");
-      }
-
-      // Cancel and archive all orders
-      const toProcess = orders.filter((o) => o.status !== "archived");
-      if (toProcess.length === 0) {
-        return text(`All ${orders.length} order(s) are already archived.`);
-      }
-
-      let archived = 0;
-      for (const order of toProcess) {
-        try {
-          if (order.status !== "canceled") {
-            await medusaAdminPost(`/admin/orders/${order.id}/cancel`, {});
-          }
-          await medusaAdminPost(`/admin/orders/${order.id}/archive`, {});
-          archived++;
-        } catch (err) {
-          console.warn(`Failed to archive order ${order.id}:`, err);
-        }
-      }
-
-      return text(`Archived ${archived} of ${toProcess.length} order(s).`);
-    } catch (err) {
-      console.error("Failed to clear orders:", err);
-      return error(
-        `Failed to clear orders: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
     }
   },
